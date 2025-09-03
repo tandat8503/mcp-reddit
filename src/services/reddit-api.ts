@@ -7,6 +7,8 @@ import {
   RedditSearchResult,
   ApiCallResult,
 } from "../types/index.js";
+import fs from 'fs/promises';
+import path from 'path';
 
 /**
  * Reddit API Service
@@ -23,6 +25,9 @@ export class RedditAPIService {
   private accessToken: string | null = null;
   private tokenExpiry: number = 0;
   private refreshToken: string | null = null;
+  private readonly tokenStoragePath: string;
+  private rateLimitRemaining: number = 60;
+  private rateLimitReset: number = 0;
 
   constructor() {
     this.clientId = config.redditClientId;
@@ -31,6 +36,50 @@ export class RedditAPIService {
     this.timeout = config.timeoutSeconds * 1000;
     this.redirectUri = config.redditRedirectUri;
     this.oauthScopes = config.redditOAuthScopes;
+    this.tokenStoragePath = path.join(process.cwd(), 'reddit_tokens.json');
+    
+    // Load existing tokens on startup
+    this.loadTokensFromStorage();
+  }
+
+  /**
+   * Save tokens to persistent storage
+   */
+  private async saveTokensToStorage(): Promise<void> {
+    try {
+      const tokenData = {
+        accessToken: this.accessToken,
+        refreshToken: this.refreshToken,
+        tokenExpiry: this.tokenExpiry,
+        savedAt: new Date().toISOString()
+      };
+      await fs.writeFile(this.tokenStoragePath, JSON.stringify(tokenData, null, 2));
+    } catch (error) {
+      console.error('Failed to save tokens to storage:', error);
+    }
+  }
+
+  /**
+   * Load tokens from persistent storage
+   */
+  private async loadTokensFromStorage(): Promise<void> {
+    try {
+      const data = await fs.readFile(this.tokenStoragePath, 'utf-8');
+      const tokenData = JSON.parse(data);
+      
+      // Only load if tokens are still valid
+      if (tokenData.accessToken && tokenData.tokenExpiry && Date.now() < tokenData.tokenExpiry) {
+        this.accessToken = tokenData.accessToken;
+        this.refreshToken = tokenData.refreshToken;
+        this.tokenExpiry = tokenData.tokenExpiry;
+        console.log('✅ Loaded valid tokens from storage');
+      } else {
+        console.log('⚠️ Stored tokens expired, will need re-authentication');
+      }
+    } catch (error) {
+      // File doesn't exist or invalid format, that's okay
+      console.log('ℹ️ No stored tokens found, will use client credentials');
+    }
   }
 
   /**
@@ -79,9 +128,12 @@ export class RedditAPIService {
       this.refreshToken = data.refresh_token;
       this.tokenExpiry = Date.now() + (data.expires_in * 1000);
 
-      // OAuth authorization successful
-      // Token expires in: ${data.expires_in} seconds
-      // Scopes granted: ${data.scope}
+      // Save tokens to persistent storage
+      await this.saveTokensToStorage();
+
+      console.log(`✅ OAuth authorization successful`);
+      console.log(`   Token expires in: ${data.expires_in} seconds`);
+      console.log(`   Scopes granted: ${data.scope}`);
 
       return true;
     } catch (error) {
@@ -138,6 +190,9 @@ export class RedditAPIService {
       const data = await response.json();
       this.accessToken = data.access_token;
       this.tokenExpiry = Date.now() + (data.expires_in * 1000);
+
+      // Save refreshed tokens to storage
+      await this.saveTokensToStorage();
 
       return true;
     } catch (error) {
@@ -218,8 +273,36 @@ export class RedditAPIService {
         signal: AbortSignal.timeout(this.timeout),
       });
 
+      // Handle rate limiting
+      const remaining = response.headers.get('x-ratelimit-remaining');
+      const reset = response.headers.get('x-ratelimit-reset');
+      
+      if (remaining) {
+        this.rateLimitRemaining = parseInt(remaining);
+      }
+      if (reset) {
+        this.rateLimitReset = parseInt(reset);
+      }
+
+      // Check if we're approaching rate limit
+      if (this.rateLimitRemaining < 5) {
+        console.log(`⚠️ Rate limit warning: ${this.rateLimitRemaining} requests remaining`);
+      }
+
       if (!response.ok) {
         const errorText = await response.text();
+        
+        // Handle rate limit exceeded
+        if (response.status === 429) {
+          const waitTime = this.rateLimitReset > 0 ? this.rateLimitReset : 60;
+          return {
+            success: false,
+            error: `Rate limit exceeded. Please wait ${waitTime} seconds before trying again.`,
+            endpoint,
+            timestamp: Date.now(),
+          };
+        }
+        
         return {
           success: false,
           error: `Reddit API Error ${response.status}: ${errorText}`,

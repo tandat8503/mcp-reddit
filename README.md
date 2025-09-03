@@ -6,9 +6,11 @@ A Model Context Protocol (MCP) server that provides access to Reddit's API throu
 
 - **13 Comprehensive Tools**: Covering both read-only and action-based operations
 - **OAuth2 Support**: Full OAuth2 Authorization Code flow with redirect URI
-- **Rate Limiting**: Built-in rate limiting to respect Reddit's API limits
-- **Error Handling**: Robust error handling and logging
-- **TypeScript**: Fully typed with strict TypeScript configuration
+- **Persistent Token Storage**: Tokens are automatically saved and restored across server restarts
+- **Advanced Rate Limiting**: Built-in rate limiting with Reddit API header monitoring
+- **Type-Safe Architecture**: Full TypeScript with Zod schema validation and z.infer types
+- **Error Handling**: Robust error handling with dynamic troubleshooting tips
+- **Clean Code Patterns**: Consistent tool handlers with reduced boilerplate
 - **MCP Standard**: Compliant with Model Context Protocol specifications
 
 ## 🔐 OAuth2 Authentication
@@ -106,21 +108,28 @@ node detailed-oauth-test.cjs
 ## 🎯 Available Tools
 
 ### 📖 Read-Only Tools (Public API)
-1. **`get_subreddit_posts`** - Get posts from a subreddit
-2. **`search_posts`** - Search for posts across Reddit
-3. **`get_post_comments`** - Get comments for a specific post
-4. **`get_user_info`** - Get user profile information
-5. **`get_trending_subreddits`** - Get trending subreddits
-6. **`get_subreddit_info`** - Get subreddit information
+1. **`get_subreddit_posts`** - Get posts from a subreddit with sorting options
+2. **`search_reddit`** - Search for posts across Reddit or within specific subreddits
+3. **`get_user_profile`** - Get detailed user profile information
+4. **`get_subreddit_info`** - Get comprehensive subreddit information
+5. **`get_post_comments`** - Get comments for a specific post with sorting
+6. **`get_trending_subreddits`** - Get trending and popular subreddits
 7. **`get_user_posts`** - Get posts by a specific user
+8. **`get_user_comments`** - Get comments by a specific user
 
 ### 🎯 Action Tools (OAuth Required)
-8. **`submit_post`** - Submit a new post to a subreddit
-9. **`submit_comment`** - Submit a comment on a post
-10. **`vote`** - Vote on posts or comments
-11. **`save_post`** - Save or unsave a post
-12. **`send_message`** - Send a private message
-13. **`subscribe_subreddit`** - Subscribe/unsubscribe to subreddits
+9. **`get_oauth_url`** - Generate OAuth2 authorization URL
+10. **`exchange_oauth_code`** - Exchange authorization code for access token
+11. **`vote_post`** - Vote on posts or comments (upvote/downvote)
+12. **`comment_on_post`** - Submit a comment on a post
+13. **`create_post`** - Create a new post in a subreddit
+
+### 🔧 Tool Features
+- **Smart Defaults**: Intelligent parameter defaults for better UX
+- **Type Safety**: Full TypeScript validation with Zod schemas
+- **Error Handling**: Comprehensive error messages with troubleshooting tips
+- **Rate Limiting**: Built-in protection against API rate limits
+- **Inline Documentation**: Detailed descriptions with examples for each tool
 
 ## 🔄 OAuth2 Flow Details
 
@@ -143,6 +152,8 @@ The server starts a local HTTP server on port 8080 to receive the authorization 
 - **Access Token**: Used for API calls (expires in 1 hour)
 - **Refresh Token**: Used to refresh access token (permanent)
 - **Automatic Refresh**: Server automatically refreshes expired tokens
+- **Persistent Storage**: Tokens are saved to `reddit_tokens.json` and restored on startup
+- **Smart Recovery**: Server automatically loads valid tokens and handles expired ones gracefully
 
 ## 📊 Rate Limiting & OAuth Scopes
 
@@ -150,6 +161,9 @@ The server starts a local HTTP server on port 8080 to receive the authorization 
 - **OAuth Apps**: 60 requests per minute
 - **Public API**: 30 requests per minute
 - **Built-in Protection**: Server includes rate limiting to prevent API abuse
+- **Header Monitoring**: Automatically reads `X-Ratelimit-Remaining` and `X-Ratelimit-Reset` headers
+- **Smart Warnings**: Logs warnings when approaching rate limits
+- **Graceful Handling**: Returns helpful error messages when rate limits are exceeded
 
 ### OAuth Scopes
 - **`read`**: Read posts, comments, subreddits
@@ -164,22 +178,32 @@ The server starts a local HTTP server on port 8080 to receive the authorization 
 ### Common Issues
 
 1. **401 Unauthorized**
-   - Check Client ID and Client Secret
-   - Verify app type is "script"
+   - Check Client ID and Client Secret in `.env` file
+   - Verify app type is "script" in Reddit app settings
    - Ensure OAuth scopes are set correctly
+   - Check if tokens in `reddit_tokens.json` are expired
 
 2. **Redirect URI Mismatch**
    - Redirect URI in `.env` must match Reddit app settings exactly
-   - Default: `http://localhost:8080`
+   - Default: `http://localhost:8080` (not `/callback`)
+   - Ensure no trailing slashes or extra paths
 
 3. **403 Forbidden**
-   - Check User-Agent string
-   - Verify app is not suspended
-   - Ensure proper OAuth scopes
+   - Check User-Agent string format
+   - Verify app is not suspended on Reddit
+   - Ensure proper OAuth scopes are granted
+   - Try re-authenticating with OAuth flow
 
 4. **Rate Limit Exceeded**
-   - Wait for rate limit reset
-   - Implement proper rate limiting in your application
+   - Server automatically monitors rate limits
+   - Check console for rate limit warnings
+   - Wait for the reset time shown in error messages
+   - Consider implementing request queuing for high-volume usage
+
+5. **Token Issues**
+   - Delete `reddit_tokens.json` to force re-authentication
+   - Check if tokens are being saved correctly
+   - Verify OAuth flow completed successfully
 
 ### Debug Steps
 
@@ -198,6 +222,26 @@ The server starts a local HTTP server on port 8080 to receive the authorization 
    node check-credentials.cjs
    ```
 
+## 🏗️ Technical Improvements
+
+### Code Quality Enhancements
+- **Type Safety**: All tools now use `z.infer<typeof Schema>` for compile-time type checking
+- **Consistent Patterns**: Unified `createToolHandler` wrapper eliminates boilerplate try-catch blocks
+- **Magic Number Constants**: Replaced hardcoded values with named constants for better maintainability
+- **Error Handling**: Dynamic error messages with context-specific troubleshooting tips
+
+### Architecture Improvements
+- **Persistent Token Storage**: Automatic token persistence in `reddit_tokens.json`
+- **Rate Limit Intelligence**: Real-time monitoring of Reddit API rate limit headers
+- **Smart Defaults**: Intelligent parameter defaults based on tool context
+- **Clean Separation**: Clear separation between read-only and action-based tools
+
+### Developer Experience
+- **Inline Documentation**: Comprehensive tool descriptions with examples and usage patterns
+- **TypeScript Strict Mode**: Full type safety with strict TypeScript configuration
+- **Consistent Error Responses**: Standardized error format across all tools
+- **Build Validation**: Automated TypeScript compilation with error checking
+
 ## 📁 Project Structure
 
 ```
@@ -205,11 +249,11 @@ mcp-reddit/
 ├── src/
 │   ├── services/
 │   │   ├── config.ts          # Configuration management
-│   │   └── reddit-api.ts      # Reddit API service
+│   │   └── reddit-api.ts      # Reddit API service with token persistence
 │   ├── types/
-│   │   └── index.ts           # TypeScript types and schemas
-│   └── index.ts               # Main MCP server
-├── tests/                     # Test scripts
+│   │   └── index.ts           # TypeScript types and Zod schemas
+│   └── index.ts               # Main MCP server with 13 tools
+├── reddit_tokens.json         # Persistent token storage (auto-generated)
 ├── .env                       # Environment variables
 ├── env.example               # Environment template
 └── README.md                 # This file

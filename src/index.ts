@@ -127,7 +127,7 @@ function formatRedditPost(post: RedditPost): string {
   const createdDate = post.created_utc ? new Date(post.created_utc * 1000).toLocaleDateString() : 'Unknown';
   
   // Format score with emoji
-  const scoreEmoji = score > 1000 ? '🔥' : score > 100 ? '👍' : score > 0 ? '⬆️' : '➡️';
+  const scoreEmoji = score > HIGH_SCORE_THRESHOLD ? '🔥' : score > MEDIUM_SCORE_THRESHOLD ? '👍' : score > 0 ? '⬆️' : '➡️';
   
   let result = `📝 **${title}**\n`;
   result += `👤 by u/${author} in r/${subreddit}\n`;
@@ -337,6 +337,45 @@ function createSuccessResponse(text: string): any {
   };
 }
 
+/**
+ * Create tool handler wrapper - Tạo wrapper để giảm boilerplate code
+ * Hàm này bọc logic handler và tự động xử lý try-catch
+ * 
+ * @param handler - Function xử lý logic chính của tool
+ * @returns Wrapped handler với error handling tự động
+ * 
+ * 📝 Cách sử dụng: Thay thế try-catch blocks trong tool definitions
+ * 🔍 Đặc điểm: Tự động log errors và tạo error response chuẩn
+ * 💡 Lợi ích: Giảm code duplication và đảm bảo error handling consistency
+ */
+function createToolHandler<T>(handler: (params: T) => Promise<any>) {
+  return async (params: T) => {
+    try {
+      return await handler(params);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`Tool execution failed:`, error);
+      return createErrorResponse("An unexpected error occurred in the tool", errorMessage);
+    }
+  };
+}
+
+// ========================================
+// 📊 CONSTANTS - Magic Numbers
+// ========================================
+
+// Display limits for better UX
+const POST_PREVIEW_LIMIT = 10;           // Number of posts to show in preview
+const COMMENT_PREVIEW_LIMIT = 10;        // Number of comments to show in preview  
+const SEARCH_RESULT_LIMIT = 8;           // Number of search results to show
+const TRENDING_SUBREDDIT_LIMIT = 15;     // Number of trending subreddits to show
+const USER_POST_LIMIT = 10;              // Number of user posts to show
+const USER_COMMENT_LIMIT = 10;           // Number of user comments to show
+
+// Score thresholds for formatting
+const HIGH_SCORE_THRESHOLD = 1000;       // Posts with score > 1000 are considered "hot"
+const MEDIUM_SCORE_THRESHOLD = 100;      // Posts with score > 100 are considered "popular"
+
 // ========================================
 // 🚀 MCP SERVER SETUP
 // ========================================
@@ -384,47 +423,42 @@ server.tool(
   "   • Get top posts: {\"subreddit\": \"MachineLearning\", \"sort\": \"top\"}\n" +
   "🔍 Output: Formatted list with title, author, score, comments, date, and Reddit link",
   SimpleSubredditPostsSchema.shape,
-  async (params: any) => {
-    try {
-      const { subreddit, sort } = params;
-      
-      // 🧠 Smart defaults for missing parameters
-      const smartDefaults = getSmartDefaults(params, 'subreddit_posts');
-      const finalParams = { ...smartDefaults, subreddit, sort: sort || smartDefaults.sort };
-      
-      const result = await redditAPI.getSubredditPosts(
-        finalParams.subreddit, 
-        finalParams.sort, 
-        finalParams.limit, 
-        finalParams.time as any
-      );
+  createToolHandler(async (params: z.infer<typeof SimpleSubredditPostsSchema>) => {
+    const { subreddit, sort } = params;
+    
+    // 🧠 Smart defaults for missing parameters
+    const smartDefaults = getSmartDefaults(params, 'subreddit_posts');
+    const finalParams = { ...smartDefaults, subreddit, sort: sort || smartDefaults.sort };
+    
+    const result = await redditAPI.getSubredditPosts(
+      finalParams.subreddit, 
+      finalParams.sort, 
+      finalParams.limit, 
+      finalParams.time as any
+    );
 
-      if (!result.success) {
-        return createErrorResponse("Error getting subreddit posts", result.error);
-      }
-
-      const data = result.data;
-      if (!data || !data.data || !data.data.children) {
-        return createErrorResponse("No posts found in subreddit");
-      }
-
-      const posts = data.data.children.map((child: any) => child.data);
-      
-      if (posts.length === 0) {
-        return createSuccessResponse(`No posts found in r/${subreddit}`);
-      }
-
-      const summary = `📊 Found ${posts.length} posts from r/${subreddit} (sorted by ${sort})`;
-      
-      const postDetails = posts.slice(0, 10).map((post: any) => formatRedditPost(post)).join('\n\n');
-
-      const resultText = `${summary}\n\n${postDetails}${posts.length > 10 ? '\n\n... and more posts available' : ''}`;
-      return createSuccessResponse(resultText);
-
-    } catch (error) {
-      return createErrorResponse("Failed to get subreddit posts", error instanceof Error ? error.message : 'Unknown error');
+    if (!result.success) {
+      return createErrorResponse("Error getting subreddit posts", result.error);
     }
-  }
+
+    const data = result.data;
+    if (!data || !data.data || !data.data.children) {
+      return createErrorResponse("No posts found in subreddit");
+    }
+
+    const posts = data.data.children.map((child: any) => child.data);
+    
+    if (posts.length === 0) {
+      return createSuccessResponse(`No posts found in r/${subreddit}`);
+    }
+
+    const summary = `📊 Found ${posts.length} posts from r/${subreddit} (sorted by ${sort})`;
+    
+    const postDetails = posts.slice(0, POST_PREVIEW_LIMIT).map((post: any) => formatRedditPost(post)).join('\n\n');
+
+    const resultText = `${summary}\n\n${postDetails}${posts.length > POST_PREVIEW_LIMIT ? '\n\n... and more posts available' : ''}`;
+    return createSuccessResponse(resultText);
+  })
 );
 
 // Tool 2: Search Reddit - Tìm kiếm posts và comments trên Reddit
@@ -445,50 +479,45 @@ server.tool(
   "   • Tech search: {\"query\": \"TypeScript\", \"subreddit\": \"typescript\"}\n" +
   "🔍 Output: Formatted search results with title, author, subreddit, score, and link",
   SimpleSearchSchema.shape,
-  async (params: any) => {
-    try {
-      const { query, subreddit } = params;
-      
-      // 🧠 Smart defaults for missing parameters
-      const smartDefaults = getSmartDefaults(params, 'search');
-      const finalParams = { ...smartDefaults, query, subreddit };
-      
-      const result = await redditAPI.searchReddit(
-        finalParams.query, 
-        finalParams.subreddit, 
-        finalParams.sort, 
-        finalParams.time as any, 
-        finalParams.limit
-      );
+  createToolHandler(async (params: z.infer<typeof SimpleSearchSchema>) => {
+    const { query, subreddit } = params;
+    
+    // 🧠 Smart defaults for missing parameters
+    const smartDefaults = getSmartDefaults(params, 'search');
+    const finalParams = { ...smartDefaults, query, subreddit };
+    
+    const result = await redditAPI.searchReddit(
+      finalParams.query, 
+      finalParams.subreddit, 
+      finalParams.sort, 
+      finalParams.time as any, 
+      finalParams.limit
+    );
 
-      if (!result.success) {
-        return createErrorResponse("Error searching Reddit", result.error);
-      }
-
-      const data = result.data;
-      if (!data || !data.data || !data.data.children) {
-        return createErrorResponse("No search results found");
-      }
-
-      const posts = data.data.children.map((child: any) => child.data);
-      
-      if (posts.length === 0) {
-        const searchContext = subreddit ? ` in r/${subreddit}` : '';
-        return createSuccessResponse(`No results found for "${query}"${searchContext}`);
-      }
-
-      const searchContext = subreddit ? ` in r/${subreddit}` : '';
-      const summary = `🔍 Found ${posts.length} results for "${query}"${searchContext} (sorted by ${finalParams.sort})`;
-      
-      const postDetails = posts.slice(0, 8).map((post: any) => formatRedditPost(post)).join('\n\n');
-
-      const resultText = `${summary}\n\n${postDetails}${posts.length > 8 ? '\n\n... and more results available' : ''}`;
-      return createSuccessResponse(resultText);
-
-    } catch (error) {
-      return createErrorResponse("Failed to search Reddit", error instanceof Error ? error.message : 'Unknown error');
+    if (!result.success) {
+      return createErrorResponse("Error searching Reddit", result.error);
     }
-  }
+
+    const data = result.data;
+    if (!data || !data.data || !data.data.children) {
+      return createErrorResponse("No search results found");
+    }
+
+    const posts = data.data.children.map((child: any) => child.data);
+    
+    if (posts.length === 0) {
+      const searchContext = subreddit ? ` in r/${subreddit}` : '';
+      return createSuccessResponse(`No results found for "${query}"${searchContext}`);
+    }
+
+    const searchContext = subreddit ? ` in r/${subreddit}` : '';
+    const summary = `🔍 Found ${posts.length} results for "${query}"${searchContext} (sorted by ${finalParams.sort})`;
+    
+    const postDetails = posts.slice(0, SEARCH_RESULT_LIMIT).map((post: any) => formatRedditPost(post)).join('\n\n');
+
+    const resultText = `${summary}\n\n${postDetails}${posts.length > SEARCH_RESULT_LIMIT ? '\n\n... and more results available' : ''}`;
+    return createSuccessResponse(resultText);
+  })
 );
 
 // Tool 3: Get User Profile - Lấy thông tin chi tiết về user Reddit
@@ -508,30 +537,25 @@ server.tool(
   "   • View profile: {\"username\": \"gallowboob\"}\n" +
   "🔍 Output: User info with karma, account age, gold status, moderator status, and profile link",
   SimpleUserProfileSchema.shape,
-  async (params: any) => {
-    try {
-      const { username } = params;
-      
-      const result = await redditAPI.getUserProfile(username);
+  createToolHandler(async (params: z.infer<typeof SimpleUserProfileSchema>) => {
+    const { username } = params;
+    
+    const result = await redditAPI.getUserProfile(username);
 
-      if (!result.success) {
-        return createErrorResponse("Error getting user profile", result.error);
-      }
-
-      const data = result.data;
-      if (!data || !data.data) {
-        return createErrorResponse("User profile not found");
-      }
-
-      const user = data.data;
-      const userInfo = formatUserProfile(user);
-      
-      return createSuccessResponse(userInfo);
-
-    } catch (error) {
-      return createErrorResponse("Failed to get user profile", error instanceof Error ? error.message : 'Unknown error');
+    if (!result.success) {
+      return createErrorResponse("Error getting user profile", result.error);
     }
-  }
+
+    const data = result.data;
+    if (!data || !data.data) {
+      return createErrorResponse("User profile not found");
+    }
+
+    const user = data.data;
+    const userInfo = formatUserProfile(user);
+    
+    return createSuccessResponse(userInfo);
+  })
 );
 
 // Tool 4: Get Subreddit Information - Lấy thông tin chi tiết về subreddit
@@ -551,30 +575,25 @@ server.tool(
   "   • View details: {\"subreddit\": \"MachineLearning\"}\n" +
   "🔍 Output: Subreddit details with description, subscribers, active users, creation date, NSFW status, and URL",
   SimpleSubredditInfoSchema.shape,
-  async (params: any) => {
-    try {
-      const { subreddit } = params;
-      
-      const result = await redditAPI.getSubredditInfo(subreddit);
+  createToolHandler(async (params: z.infer<typeof SimpleSubredditInfoSchema>) => {
+    const { subreddit } = params;
+    
+    const result = await redditAPI.getSubredditInfo(subreddit);
 
-      if (!result.success) {
-        return createErrorResponse("Error getting subreddit info", result.error);
-      }
-
-      const data = result.data;
-      if (!data || !data.data) {
-        return createErrorResponse("Subreddit not found");
-      }
-
-      const subredditInfo = data.data;
-      const formattedInfo = formatSubredditInfo(subredditInfo);
-      
-      return createSuccessResponse(formattedInfo);
-
-    } catch (error) {
-      return createErrorResponse("Failed to get subreddit info", error instanceof Error ? error.message : 'Unknown error');
+    if (!result.success) {
+      return createErrorResponse("Error getting subreddit info", result.error);
     }
-  }
+
+    const data = result.data;
+    if (!data || !data.data) {
+      return createErrorResponse("Subreddit not found");
+    }
+
+    const subredditInfo = data.data;
+    const formattedInfo = formatSubredditInfo(subredditInfo);
+    
+    return createSuccessResponse(formattedInfo);
+  })
 );
 
 // Tool 5: Get Post Comments - Lấy comments của một post Reddit
@@ -595,48 +614,43 @@ server.tool(
   "   • New comments: {\"post_id\": \"1n1nlse\", \"sort\": \"new\"}\n" +
   "🔍 Output: Formatted comment tree with author, score, timestamp, and nested replies",
   SimplePostCommentsSchema.shape,
-  async (params: any) => {
-    try {
-      const { post_id, sort } = params;
-      
-      // 🧠 Smart defaults for missing parameters
-      const smartDefaults = getSmartDefaults(params, 'comments');
-      const finalParams = { ...smartDefaults, post_id, sort: sort || smartDefaults.sort };
-      
-      const result = await redditAPI.getPostComments(post_id, finalParams.limit, finalParams.sort);
+  createToolHandler(async (params: z.infer<typeof SimplePostCommentsSchema>) => {
+    const { post_id, sort } = params;
+    
+    // 🧠 Smart defaults for missing parameters
+    const smartDefaults = getSmartDefaults(params, 'comments');
+    const finalParams = { ...smartDefaults, post_id, sort: sort || smartDefaults.sort };
+    
+    const result = await redditAPI.getPostComments(post_id, finalParams.limit, finalParams.sort);
 
-      if (!result.success) {
-        return createErrorResponse("Error getting post comments", result.error);
-      }
-
-      const data = result.data;
-      if (!data || !Array.isArray(data) || data.length === 0) {
-        return createErrorResponse("No comments found for this post");
-      }
-
-      // The first element contains the post, the second contains comments
-      const commentsData = data[1];
-      if (!commentsData || !commentsData.data || !commentsData.data.children) {
-        return createErrorResponse("No comments found for this post");
-      }
-
-      const comments = commentsData.data.children.map((child: any) => child.data);
-      
-      if (comments.length === 0) {
-        return createSuccessResponse("No comments found for this post");
-      }
-
-      const summary = `💬 Found ${comments.length} comments for post ${post_id} (sorted by ${sort})`;
-      
-      const commentDetails = comments.slice(0, 10).map((comment: any) => formatRedditComment(comment)).join('\n\n');
-
-      const resultText = `${summary}\n\n${commentDetails}${comments.length > 10 ? '\n\n... and more comments available' : ''}`;
-      return createSuccessResponse(resultText);
-
-    } catch (error) {
-      return createErrorResponse("Failed to get post comments", error instanceof Error ? error.message : 'Unknown error');
+    if (!result.success) {
+      return createErrorResponse("Error getting post comments", result.error);
     }
-  }
+
+    const data = result.data;
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      return createErrorResponse("No comments found for this post");
+    }
+
+    // The first element contains the post, the second contains comments
+    const commentsData = data[1];
+    if (!commentsData || !commentsData.data || !commentsData.data.children) {
+      return createErrorResponse("No comments found for this post");
+    }
+
+    const comments = commentsData.data.children.map((child: any) => child.data);
+    
+    if (comments.length === 0) {
+      return createSuccessResponse("No comments found for this post");
+    }
+
+    const summary = `💬 Found ${comments.length} comments for post ${post_id} (sorted by ${sort})`;
+    
+    const commentDetails = comments.slice(0, COMMENT_PREVIEW_LIMIT).map((comment: any) => formatRedditComment(comment)).join('\n\n');
+
+    const resultText = `${summary}\n\n${commentDetails}${comments.length > COMMENT_PREVIEW_LIMIT ? '\n\n... and more comments available' : ''}`;
+    return createSuccessResponse(resultText);
+  })
 );
 
 // Tool 6: Get Trending Subreddits - Lấy danh sách subreddits phổ biến/trending
@@ -655,32 +669,31 @@ server.tool(
   "   • Simple call: {}\n" +
   "🔍 Output: List of trending subreddits with name, title, subscribers, description, and URL",
   SimpleTrendingSubredditsSchema.shape,
-  async (params: any) => {
-    try {
-      // 🧠 Smart defaults - no parameters needed
-      const smartDefaults = getSmartDefaults(params, 'trending');
-      const finalParams = { ...smartDefaults };
-      
-      const result = await redditAPI.getTrendingSubreddits(finalParams.limit || 25);
+  createToolHandler(async (params: z.infer<typeof SimpleTrendingSubredditsSchema>) => {
+    // 🧠 Smart defaults - no parameters needed
+    const smartDefaults = getSmartDefaults(params, 'trending');
+    const finalParams = { ...smartDefaults };
+    
+    const result = await redditAPI.getTrendingSubreddits(finalParams.limit || 25);
 
-      if (!result.success) {
-        return createErrorResponse("Error getting trending subreddits", result.error);
-      }
+    if (!result.success) {
+      return createErrorResponse("Error getting trending subreddits", result.error);
+    }
 
-      const data = result.data;
-      if (!data || !data.data || !data.data.children) {
-        return createErrorResponse("No trending subreddits found");
-      }
+    const data = result.data;
+    if (!data || !data.data || !data.data.children) {
+      return createErrorResponse("No trending subreddits found");
+    }
 
-      const subreddits = data.data.children.map((child: any) => child.data);
-      
-      if (subreddits.length === 0) {
-        return createSuccessResponse("No trending subreddits found");
-      }
+    const subreddits = data.data.children.map((child: any) => child.data);
+    
+    if (subreddits.length === 0) {
+      return createSuccessResponse("No trending subreddits found");
+    }
 
-      const summary = `🔥 Found ${subreddits.length} trending subreddits`;
-      
-      const subredditDetails = subreddits.slice(0, 15).map((subreddit: any) => {
+    const summary = `🔥 Found ${subreddits.length} trending subreddits`;
+    
+    const subredditDetails = subreddits.slice(0, TRENDING_SUBREDDIT_LIMIT).map((subreddit: any) => {
         const name = subreddit.display_name || 'Unknown';
         const title = subreddit.title || 'No title';
         const subscribers = subreddit.subscribers || 0;
@@ -698,13 +711,9 @@ server.tool(
         return result;
       }).join('\n\n');
 
-      const resultText = `${summary}\n\n${subredditDetails}${subreddits.length > 15 ? '\n\n... and more subreddits available' : ''}`;
-      return createSuccessResponse(resultText);
-
-    } catch (error) {
-      return createErrorResponse("Failed to get trending subreddits", error instanceof Error ? error.message : 'Unknown error');
-    }
-  }
+    const resultText = `${summary}\n\n${subredditDetails}${subreddits.length > TRENDING_SUBREDDIT_LIMIT ? '\n\n... and more subreddits available' : ''}`;
+    return createSuccessResponse(resultText);
+  })
 );
 
 // Tool 7: Get Cross Posts - Tìm crossposts của một post Reddit
