@@ -4,7 +4,7 @@ A Model Context Protocol (MCP) server that provides access to Reddit's API throu
 
 ## 🚀 Features
 
-- **13 Comprehensive Tools**: Covering both read-only and action-based operations
+- **15 Comprehensive Tools**: 7 read-only + 6 action + 2 OAuth setup tools
 - **OAuth2 Support**: Full OAuth2 Authorization Code flow with redirect URI
 - **Persistent Token Storage**: Tokens are automatically saved and restored across server restarts
 - **Advanced Rate Limiting**: Built-in rate limiting with Reddit API header monitoring
@@ -67,7 +67,7 @@ Create a `.env` file with the following variables:
 REDDIT_CLIENT_ID=your_client_id_here
 REDDIT_CLIENT_SECRET=your_client_secret_here
 REDDIT_USER_AGENT=Your-App-Name/1.0.0 (by /u/YourUsername)
-REDDIT_REDIRECT_URI=http://localhost:8080/callback
+REDDIT_REDIRECT_URI=http://localhost:8080
 REDDIT_OAUTH_SCOPES=read submit vote history privatemessages subscribe
 TIMEOUT_SECONDS=30
 ```
@@ -87,42 +87,154 @@ TIMEOUT_SECONDS=30
 
 ## 🧪 Testing
 
-### Quick OAuth2 Test
-Test the complete OAuth2 flow:
-```bash
-node oauth2-test.cjs
-```
+### Using MCP Inspector
+1. **Start MCP Inspector**:
+   ```bash
+   npx @modelcontextprotocol/inspector node dist/index.js
+   ```
 
-### Basic API Test
-Test basic API connectivity:
-```bash
-node quick-oauth-test.cjs
-```
+2. **Open browser**: http://localhost:6274
 
-### Detailed OAuth Test
-Comprehensive OAuth testing:
-```bash
-node detailed-oauth-test.cjs
-```
+3. **Test tools**: Use the comprehensive test data in `test-data.json`
+
+### Quick Start Testing
+1. **Read-only tools** (no OAuth required):
+   - `get_subreddit_posts`
+   - `search_reddit`
+   - `get_subreddit_info`
+   - `get_trending_subreddits`
+
+2. **OAuth setup**:
+   - `get_oauth_url` → Get authorization URL
+   - `exchange_oauth_code` → Exchange code for token
+
+3. **Action tools** (after OAuth):
+   - `submit_post`
+   - `submit_comment`
+   - `vote_post`
+   - `save_post`
+   - `send_message`
+   - `subscribe_subreddit`
 
 ## 🎯 Available Tools
 
-### 📖 Read-Only Tools (Public API)
+### 📖 Read-Only Tools (7 tools - No OAuth Required)
 1. **`get_subreddit_posts`** - Get posts from a subreddit with sorting options
 2. **`search_reddit`** - Search for posts across Reddit or within specific subreddits
-3. **`get_user_profile`** - Get detailed user profile information
-4. **`get_subreddit_info`** - Get comprehensive subreddit information
-5. **`get_post_comments`** - Get comments for a specific post with sorting
+3. **`get_post_comments`** - Get comments for a specific post with sorting
+4. **`get_user_posts`** - Get posts by a specific user
+5. **`get_user_comments`** - Get comments by a specific user
 6. **`get_trending_subreddits`** - Get trending and popular subreddits
-7. **`get_user_posts`** - Get posts by a specific user
-8. **`get_user_comments`** - Get comments by a specific user
+7. **`get_subreddit_info`** - Get comprehensive subreddit information
 
-### 🎯 Action Tools (OAuth Required)
-9. **`get_oauth_url`** - Generate OAuth2 authorization URL
-10. **`exchange_oauth_code`** - Exchange authorization code for access token
-11. **`vote_post`** - Vote on posts or comments (upvote/downvote)
-12. **`comment_on_post`** - Submit a comment on a post
-13. **`create_post`** - Create a new post in a subreddit
+### 🔐 OAuth Setup Tools (2 tools)
+8. **`get_oauth_url`** - Generate OAuth2 authorization URL for user authentication
+9. **`exchange_oauth_code`** - Exchange authorization code for access token
+
+### ⚡ Action Tools (6 tools - OAuth Required)
+10. **`submit_post`** - Create a new text or link post in a subreddit
+11. **`submit_comment`** - Submit a comment on a post or reply to another comment
+12. **`vote_post`** - Vote on posts or comments (upvote/downvote/neutral)
+13. **`save_post`** - Save or unsave posts to your saved collection
+14. **`send_message`** - Send private messages to other Reddit users
+15. **`subscribe_subreddit`** - Subscribe or unsubscribe from subreddits
+
+## 📖 Tool Usage Examples
+
+### Read-Only Tools (No OAuth Required)
+
+#### Get Subreddit Posts
+```json
+{
+  "name": "get_subreddit_posts",
+  "arguments": {
+    "subreddit": "programming",
+    "sort": "hot",
+    "limit": 10
+  }
+}
+```
+
+#### Search Reddit
+```json
+{
+  "name": "search_reddit",
+  "arguments": {
+    "query": "python tutorial",
+    "subreddit": "learnprogramming",
+    "sort": "relevance"
+  }
+}
+```
+
+#### Get Subreddit Info
+```json
+{
+  "name": "get_subreddit_info",
+  "arguments": {
+    "subreddit": "programming"
+  }
+}
+```
+
+### OAuth Setup (Required for Action Tools)
+
+#### Get OAuth URL
+```json
+{
+  "name": "get_oauth_url",
+  "arguments": {
+    "state": "my_auth_123"
+  }
+}
+```
+
+#### Exchange Authorization Code
+```json
+{
+  "name": "exchange_oauth_code",
+  "arguments": {
+    "code": "AUTHORIZATION_CODE_FROM_REDDIT",
+    "state": "my_auth_123"
+  }
+}
+```
+
+### Action Tools (After OAuth Setup)
+
+#### Submit Post
+```json
+{
+  "name": "submit_post",
+  "arguments": {
+    "subreddit": "test",
+    "title": "Test Post from MCP",
+    "content": "Hello from MCP Reddit Server!"
+  }
+}
+```
+
+#### Vote on Post
+```json
+{
+  "name": "vote_post",
+  "arguments": {
+    "post_id": "t3_1234567",
+    "direction": "up"
+  }
+}
+```
+
+#### Subscribe to Subreddit
+```json
+{
+  "name": "subscribe_subreddit",
+  "arguments": {
+    "subreddit": "programming",
+    "action": "follow"
+  }
+}
+```
 
 ### 🔧 Tool Features
 - **Smart Defaults**: Intelligent parameter defaults for better UX
@@ -130,6 +242,46 @@ node detailed-oauth-test.cjs
 - **Error Handling**: Comprehensive error messages with troubleshooting tips
 - **Rate Limiting**: Built-in protection against API rate limits
 - **Inline Documentation**: Detailed descriptions with examples for each tool
+
+## 🚀 Getting Started Workflow
+
+### Step 1: Setup and Build
+```bash
+npm install
+npm run build
+```
+
+### Step 2: Configure Environment
+```bash
+cp env.example .env
+# Edit .env with your Reddit API credentials
+```
+
+### Step 3: Start MCP Inspector
+```bash
+npx @modelcontextprotocol/inspector node dist/index.js
+```
+
+### Step 4: Test Read-Only Tools
+Start with tools that don't require OAuth:
+- `get_trending_subreddits` - See what's popular
+- `get_subreddit_info` - Get subreddit details
+- `get_subreddit_posts` - Browse posts
+- `search_reddit` - Search for content
+
+### Step 5: Setup OAuth (For Action Tools)
+1. Use `get_oauth_url` to get authorization URL
+2. Visit URL in browser and authorize
+3. Copy authorization code from redirect
+4. Use `exchange_oauth_code` to get access token
+
+### Step 6: Test Action Tools
+After OAuth setup, test authenticated actions:
+- `submit_post` - Create posts
+- `vote_post` - Vote on content
+- `save_post` - Save interesting posts
+- `subscribe_subreddit` - Follow subreddits
+- `send_message` - Send private messages
 
 ## 🔄 OAuth2 Flow Details
 
@@ -207,20 +359,24 @@ The server starts a local HTTP server on port 8080 to receive the authorization 
 
 ### Debug Steps
 
-1. **Test Basic Connectivity**:
+1. **Test with MCP Inspector**:
    ```bash
-   node network-test.cjs
+   npx @modelcontextprotocol/inspector node dist/index.js
    ```
 
-2. **Test OAuth Flow**:
+2. **Check Token File**:
    ```bash
-   node oauth2-test.cjs
+   cat reddit_tokens.json
    ```
 
-3. **Check Credentials**:
+3. **Verify Environment**:
    ```bash
-   node check-credentials.cjs
+   cat .env
    ```
+
+4. **Test Read-Only Tools First**:
+   - Start with `get_subreddit_posts` or `get_trending_subreddits`
+   - These don't require OAuth and will verify basic connectivity
 
 ## 🏗️ Technical Improvements
 
@@ -248,12 +404,14 @@ The server starts a local HTTP server on port 8080 to receive the authorization 
 mcp-reddit/
 ├── src/
 │   ├── services/
-│   │   ├── config.ts          # Configuration management
 │   │   └── reddit-api.ts      # Reddit API service with token persistence
 │   ├── types/
 │   │   └── index.ts           # TypeScript types and Zod schemas
-│   └── index.ts               # Main MCP server with 13 tools
+│   └── index.ts               # Main MCP server with 15 tools
 ├── reddit_tokens.json         # Persistent token storage (auto-generated)
+├── test-data.json            # Comprehensive test data for all tools
+├── MCP_TEST_DATA.md          # Detailed testing guide
+├── QUICK_START.md            # Quick start guide
 ├── .env                       # Environment variables
 ├── env.example               # Environment template
 └── README.md                 # This file

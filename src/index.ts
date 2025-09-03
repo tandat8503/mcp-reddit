@@ -98,7 +98,7 @@ function getSmartDefaults(params: any, toolType: string) {
       };
     case 'subscribe':
       return {
-        action: params.action === 'follow' ? 'sub' : 'unsub'
+        action: params.action // Keep original action (follow/unfollow)
       };
     default:
       return {};
@@ -833,18 +833,25 @@ server.tool(
       }
 
       const data = result.data;
-      if (!data || !data.json || !data.json.data) {
+      if (!data || !data.success) {
         return createErrorResponse("Failed to submit post - no response data");
       }
 
-      const postId = data.json.data.id;
-      const postName = data.json.data.name;
+      // Extract post URL from jquery redirect if available
+      let postUrl = "https://reddit.com/r/" + subreddit;
+      if (data.jquery && Array.isArray(data.jquery)) {
+        for (const item of data.jquery) {
+          if (item[1] === 10 && item[2] === "redirect" && item[3] && item[3][0]) {
+            postUrl = item[3][0];
+            break;
+          }
+        }
+      }
       
       const resultText = `✅ **Post submitted successfully!**\n\n` +
         `📝 **Title:** ${title}\n` +
         `🏠 **Subreddit:** r/${subreddit}\n` +
-        `🔗 **Post ID:** ${postId}\n` +
-        `🔗 **Reddit:** https://reddit.com${data.json.data.permalink}\n\n` +
+        `🔗 **Reddit URL:** ${postUrl}\n\n` +
         `💡 **Note:** This tool requires OAuth with 'submit' scope. Make sure your Reddit app has the necessary permissions.`;
       
       return createSuccessResponse(resultText);
@@ -1096,6 +1103,152 @@ server.tool(
       return createErrorResponse(`Failed to ${params.action}scribe to subreddit`, error instanceof Error ? error.message : 'Unknown error');
     }
   }
+);
+
+// ========================================
+// 🔐 OAUTH SETUP TOOLS - Các tool thiết lập OAuth authentication
+// ========================================
+
+// 🎯 OAuth URL Generation Tool
+// 📋 Chức năng: Tạo URL để user xác thực OAuth với Reddit
+// 🔧 Cách hoạt động:
+// - Tạo authorization URL với client_id, redirect_uri, scopes
+// - User truy cập URL này để đăng nhập Reddit
+// - Reddit redirect về với authorization code
+// - Code được dùng để lấy access token
+//
+// 📝 Parameters:
+// - state: Mã state để bảo mật (optional)
+//
+// 🔐 OAuth Flow: Authorization Code Flow
+// - Bước 1: Tạo authorization URL (tool này)
+// - Bước 2: User visit URL và authorize
+// - Bước 3: Exchange code for token (exchange_oauth_code tool)
+//
+// 💡 Lưu ý: URL này phải được mở trong browser để user có thể đăng nhập
+
+server.tool(
+  "get_oauth_url",
+  "🔗 Generate OAuth2 authorization URL for Reddit authentication\n" +
+  "🎯 What it does: Creates a URL for users to authorize the app with Reddit\n" +
+  "🔐 OAuth Required: No (this tool generates the OAuth URL)\n" +
+  "📝 Required: None\n" +
+  "⚙️ Optional: state (security code to prevent CSRF attacks)\n" +
+  "💡 Examples:\n" +
+  "   • Generate URL: {}\n" +
+  "   • With state: {\"state\": \"my_security_code\"}\n" +
+  "🔍 Output: OAuth authorization URL that user must visit\n" +
+  "⚠️ Note: User must visit this URL in browser to complete OAuth flow.",
+  {
+    type: "object",
+    properties: {
+      state: {
+        type: "string",
+        description: "Optional security state code to prevent CSRF attacks"
+      }
+    },
+    additionalProperties: false
+  },
+  createToolHandler(async (params: { state?: string }) => {
+    const state = params.state || 'mcp_reddit_auth';
+    const authUrl = redditAPI.getAuthorizationUrl(state);
+    
+    const resultText = `🔗 **OAuth Authorization URL Generated!**
+
+🌐 **Authorization URL:**
+${authUrl}
+
+📋 **Next Steps:**
+1. **Copy the URL above** and open it in your browser
+2. **Login to Reddit** with your account
+3. **Authorize the app** by clicking "Allow"
+4. **Copy the authorization code** from the redirect URL
+5. **Use the exchange_oauth_code tool** with the code
+
+🔐 **OAuth Scopes Requested:**
+• read - Read posts, comments, subreddits
+• submit - Submit posts and comments  
+• vote - Upvote/downvote posts and comments
+• history - Save/unsave posts
+• privatemessages - Send private messages
+• subscribe - Subscribe/unsubscribe to subreddits
+
+💡 **Note:** After completing OAuth, you'll be able to use all action tools!`;
+
+    return createSuccessResponse(resultText);
+  })
+);
+
+// 🎯 OAuth Code Exchange Tool
+// 📋 Chức năng: Đổi authorization code thành access token
+// 🔧 Cách hoạt động:
+// - Nhận authorization code từ Reddit redirect
+// - Gửi code + client credentials đến Reddit token endpoint
+// - Nhận access token và refresh token
+// - Lưu tokens vào persistent storage
+// - Tokens được dùng cho các action tools
+//
+// 📝 Parameters:
+// - code: Authorization code từ Reddit redirect URL
+// - state: State code để verify (phải match với get_oauth_url)
+//
+// 🔐 OAuth Flow: Authorization Code Flow
+// - Bước 1: get_oauth_url (tạo authorization URL)
+// - Bước 2: User authorize (manual step)
+// - Bước 3: exchange_oauth_code (tool này)
+//
+// 💡 Lưu ý: Code chỉ valid trong vài phút, phải exchange ngay
+
+// Define schema for exchange_oauth_code
+const ExchangeOAuthCodeSchema = z.object({
+  code: z.string().describe("Authorization code received from Reddit redirect URL"),
+  state: z.string().optional().describe("State code to verify (should match get_oauth_url state)")
+});
+
+server.tool(
+  "exchange_oauth_code",
+  "🔄 Exchange OAuth2 authorization code for access token\n" +
+  "🎯 What it does: Converts authorization code from Reddit into access token\n" +
+  "🔐 OAuth Required: No (this tool completes the OAuth setup)\n" +
+  "📝 Required: code (authorization code from Reddit redirect)\n" +
+  "⚙️ Optional: state (must match the state from get_oauth_url)\n" +
+  "💡 Examples:\n" +
+  "   • Exchange code: {\"code\": \"abc123def456\"}\n" +
+  "   • With state: {\"code\": \"abc123def456\", \"state\": \"my_security_code\"}\n" +
+  "🔍 Output: Success message with token information\n" +
+  "⚠️ Note: Authorization code expires quickly, use immediately after receiving it.",
+  ExchangeOAuthCodeSchema.shape,
+  createToolHandler(async (params: z.infer<typeof ExchangeOAuthCodeSchema>) => {
+    const { code, state } = params;
+    
+    const success = await redditAPI.exchangeCodeForToken(code);
+    
+    if (success) {
+      const resultText = `✅ **OAuth Authentication Successful!**
+
+🔐 **Authentication Complete:**
+• Access token obtained and saved
+• Refresh token saved for automatic renewal
+• Tokens persisted to reddit_tokens.json
+
+🎯 **You can now use all action tools:**
+• submit_post - Create new posts
+• submit_comment - Comment on posts
+• vote_post - Vote on posts/comments
+• save_post - Save/unsave posts
+• send_message - Send private messages
+• subscribe_subreddit - Subscribe/unsubscribe
+
+💡 **Note:** Tokens are automatically refreshed when needed. No need to re-authenticate unless tokens are manually deleted.`;
+
+      return createSuccessResponse(resultText);
+    } else {
+      return createErrorResponse(
+        "Failed to exchange OAuth code for token",
+        "Invalid authorization code or OAuth configuration error"
+      );
+    }
+  })
 );
 
 // ========================================

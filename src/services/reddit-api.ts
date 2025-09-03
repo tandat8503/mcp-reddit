@@ -72,13 +72,13 @@ export class RedditAPIService {
         this.accessToken = tokenData.accessToken;
         this.refreshToken = tokenData.refreshToken;
         this.tokenExpiry = tokenData.tokenExpiry;
-        console.log('✅ Loaded valid tokens from storage');
+        // Tokens loaded successfully
       } else {
-        console.log('⚠️ Stored tokens expired, will need re-authentication');
+        // Stored tokens expired, will need re-authentication
       }
     } catch (error) {
       // File doesn't exist or invalid format, that's okay
-      console.log('ℹ️ No stored tokens found, will use client credentials');
+      // No stored tokens found, will use client credentials
     }
   }
 
@@ -131,9 +131,9 @@ export class RedditAPIService {
       // Save tokens to persistent storage
       await this.saveTokensToStorage();
 
-      console.log(`✅ OAuth authorization successful`);
-      console.log(`   Token expires in: ${data.expires_in} seconds`);
-      console.log(`   Scopes granted: ${data.scope}`);
+      // OAuth authorization successful
+      // Token expires in: ${data.expires_in} seconds
+      // Scopes granted: ${data.scope}
 
       return true;
     } catch (error) {
@@ -286,7 +286,7 @@ export class RedditAPIService {
 
       // Check if we're approaching rate limit
       if (this.rateLimitRemaining < 5) {
-        console.log(`⚠️ Rate limit warning: ${this.rateLimitRemaining} requests remaining`);
+        // Rate limit warning: ${this.rateLimitRemaining} requests remaining
       }
 
       if (!response.ok) {
@@ -525,11 +525,14 @@ export class RedditAPIService {
    */
   async subscribeSubreddit(
     subreddit: string,
-    action: "sub" | "unsub"
+    action: "follow" | "unfollow"
   ): Promise<ApiCallResult> {
+    // Convert follow/unfollow to sub/unsub for Reddit API
+    const redditAction = action === "follow" ? "sub" : "unsub";
+    
     const params = {
-      sr: subreddit,
-      action
+      sr_name: subreddit,  // Use sr_name instead of sr
+      action: redditAction
     };
 
     return this.makePostRequest("/api/subscribe", params);

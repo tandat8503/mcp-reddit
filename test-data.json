@@ -1,0 +1,253 @@
+{
+  "read_only_tools": {
+    "get_subreddit_posts": [
+      {
+        "subreddit": "test",
+        "sort": "hot",
+        "limit": 5
+      },
+      {
+        "subreddit": "programming",
+        "sort": "new",
+        "limit": 10
+      },
+      {
+        "subreddit": "funny",
+        "sort": "top",
+        "time": "week",
+        "limit": 8
+      }
+    ],
+    "search_reddit": [
+      {
+        "query": "python tutorial",
+        "subreddit": "learnprogramming"
+      },
+      {
+        "query": "machine learning",
+        "subreddit": "programming",
+        "sort": "relevance",
+        "limit": 10
+      },
+      {
+        "query": "crypto news",
+        "sort": "new",
+        "limit": 5
+      }
+    ],
+    "get_post_comments": [
+      {
+        "post_id": "t3_1234567",
+        "sort": "top",
+        "limit": 20
+      },
+      {
+        "post_id": "t3_abc123",
+        "sort": "new",
+        "limit": 10
+      }
+    ],
+    "get_user_posts": [
+      {
+        "username": "spez",
+        "sort": "new",
+        "limit": 10
+      },
+      {
+        "username": "AutoModerator",
+        "sort": "top",
+        "limit": 5
+      }
+    ],
+    "get_user_comments": [
+      {
+        "username": "spez",
+        "sort": "new",
+        "limit": 10
+      },
+      {
+        "username": "reddit",
+        "sort": "controversial",
+        "limit": 8
+      }
+    ],
+    "get_trending_subreddits": [
+      {
+        "limit": 20
+      },
+      {
+        "limit": 10
+      }
+    ],
+    "get_subreddit_info": [
+      {
+        "subreddit": "programming"
+      },
+      {
+        "subreddit": "test"
+      },
+      {
+        "subreddit": "AskReddit"
+      }
+    ]
+  },
+  "oauth_setup_tools": {
+    "get_oauth_url": [
+      {
+        "state": "test_auth_123"
+      },
+      {
+        "state": "mcp_test_456"
+      },
+      {}
+    ],
+    "exchange_oauth_code": [
+      {
+        "code": "AUTHORIZATION_CODE_HERE",
+        "state": "test_auth_123"
+      },
+      {
+        "code": "abc123def456",
+        "state": "mcp_test_456"
+      }
+    ]
+  },
+  "action_tools": {
+    "submit_post": [
+      {
+        "subreddit": "test",
+        "title": "Test Post from MCP",
+        "content": "This is a test post created by MCP Reddit Server"
+      },
+      {
+        "subreddit": "test",
+        "title": "My First Post",
+        "content": "Hello Reddit! This is my first post using MCP."
+      },
+      {
+        "subreddit": "programming",
+        "title": "Cool Article",
+        "content": "https://example.com"
+      }
+    ],
+    "submit_comment": [
+      {
+        "post_id": "t3_1234567",
+        "text": "Great post! Thanks for sharing."
+      },
+      {
+        "post_id": "t3_abc123",
+        "text": "Interesting perspective!"
+      }
+    ],
+    "vote_post": [
+      {
+        "post_id": "t3_1234567",
+        "direction": "up"
+      },
+      {
+        "post_id": "t3_abc123",
+        "direction": "down"
+      },
+      {
+        "post_id": "t3_def456",
+        "direction": "neutral"
+      }
+    ],
+    "save_post": [
+      {
+        "post_id": "t3_1234567",
+        "action": "save"
+      },
+      {
+        "post_id": "t3_abc123",
+        "action": "unsave"
+      }
+    ],
+    "send_message": [
+      {
+        "to": "AutoModerator",
+        "subject": "Test Message",
+        "text": "This is a test message from MCP Reddit Server"
+      },
+      {
+        "to": "reddit",
+        "subject": "Feedback",
+        "text": "Great platform! Thanks for the API."
+      }
+    ],
+    "subscribe_subreddit": [
+      {
+        "subreddit": "test",
+        "action": "follow"
+      },
+      {
+        "subreddit": "programming",
+        "action": "follow"
+      },
+      {
+        "subreddit": "test",
+        "action": "unfollow"
+      }
+    ]
+  },
+  "test_scenarios": {
+    "read_only_exploration": [
+      "get_trending_subreddits",
+      "get_subreddit_info",
+      "get_subreddit_posts",
+      "get_post_comments",
+      "search_reddit"
+    ],
+    "oauth_setup": [
+      "get_oauth_url",
+      "exchange_oauth_code"
+    ],
+    "content_creation": [
+      "submit_post",
+      "submit_comment",
+      "vote_post",
+      "save_post"
+    ],
+    "social_interaction": [
+      "subscribe_subreddit",
+      "send_message",
+      "get_user_posts",
+      "get_user_comments"
+    ]
+  },
+  "mcp_inspector_commands": {
+    "initialize": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "initialize",
+      "params": {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {},
+        "clientInfo": {
+          "name": "test-client",
+          "version": "1.0.0"
+        }
+      }
+    },
+    "list_tools": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "tools/list",
+      "params": {}
+    },
+    "example_tool_call": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "tools/call",
+      "params": {
+        "name": "get_subreddit_posts",
+        "arguments": {
+          "subreddit": "test",
+          "sort": "hot",
+          "limit": 5
+        }
+      }
+    }
+  }
+}
