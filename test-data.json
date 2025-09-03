@@ -1,0 +1,360 @@
+{
+  "testConfig": {
+    "description": "Dữ liệu test cho MCP Reddit Server - 13 tools",
+    "version": "1.0.0",
+    "lastUpdated": "2024-01-15"
+  },
+  
+  "redditCredentials": {
+    "clientId": "R3p9xmGYS2-1Wxay775tsw",
+    "clientSecret": "VpiPNXucqdJ4V-Bej2NRPK0d8LhHdg",
+    "userAgent": "Reddit-MCP-Server/1.0.0 (by /u/AwkwardTension4482)",
+    "redirectUri": "http://localhost:8080/callback",
+    "scopes": "read submit vote history privatemessages subscribe"
+  },
+
+  "readOnlyTools": {
+    "get_subreddit_posts": {
+      "description": "Lấy posts từ subreddit",
+      "testCases": [
+        {
+          "name": "Basic Test - Programming",
+          "params": {
+            "subreddit": "programming",
+            "sort": "hot"
+          },
+          "expectedFields": ["id", "title", "author", "score", "num_comments", "created_utc"]
+        },
+        {
+          "name": "New Posts - AskReddit",
+          "params": {
+            "subreddit": "AskReddit",
+            "sort": "new"
+          }
+        },
+        {
+          "name": "Top Posts - MachineLearning",
+          "params": {
+            "subreddit": "MachineLearning",
+            "sort": "top"
+          }
+        }
+      ]
+    },
+
+    "search_reddit": {
+      "description": "Tìm kiếm trên Reddit",
+      "testCases": [
+        {
+          "name": "General Search",
+          "params": {
+            "query": "programming",
+            "subreddit": "programming"
+          }
+        },
+        {
+          "name": "Global Search",
+          "params": {
+            "query": "MCP server"
+          }
+        },
+        {
+          "name": "Tech Search",
+          "params": {
+            "query": "TypeScript tutorial",
+            "subreddit": "typescript"
+          }
+        }
+      ]
+    },
+
+    "get_user_profile": {
+      "description": "Lấy thông tin user",
+      "testCases": [
+        {
+          "name": "Test User Profile",
+          "params": {
+            "username": "AwkwardTension4482"
+          },
+          "expectedFields": ["name", "created_utc", "comment_karma", "link_karma", "is_gold"]
+        },
+        {
+          "name": "Popular User",
+          "params": {
+            "username": "spez"
+          }
+        }
+      ]
+    },
+
+    "get_subreddit_info": {
+      "description": "Lấy thông tin subreddit",
+      "testCases": [
+        {
+          "name": "Programming Subreddit",
+          "params": {
+            "subreddit": "programming"
+          },
+          "expectedFields": ["display_name", "title", "description", "subscribers", "created_utc"]
+        },
+        {
+          "name": "AskReddit Info",
+          "params": {
+            "subreddit": "AskReddit"
+          }
+        },
+        {
+          "name": "MachineLearning Info",
+          "params": {
+            "subreddit": "MachineLearning"
+          }
+        }
+      ]
+    },
+
+    "get_post_comments": {
+      "description": "Lấy comments của post",
+      "testCases": [
+        {
+          "name": "Popular Post Comments",
+          "params": {
+            "post_id": "1n1nlse",
+            "sort": "best"
+          },
+          "expectedFields": ["id", "author", "body", "score", "created_utc", "parent_id"]
+        },
+        {
+          "name": "New Comments",
+          "params": {
+            "post_id": "1n1nlse",
+            "sort": "new"
+          }
+        }
+      ]
+    },
+
+    "get_trending_subreddits": {
+      "description": "Lấy subreddits trending",
+      "testCases": [
+        {
+          "name": "Default Trending",
+          "params": {}
+        }
+      ]
+    },
+
+    "get_cross_posts": {
+      "description": "Tìm crossposts",
+      "testCases": [
+        {
+          "name": "Cross Posts Test",
+          "params": {
+            "post_id": "1n1nlse"
+          }
+        }
+      ]
+    }
+  },
+
+  "actionTools": {
+    "submit_post": {
+      "description": "Đăng post mới",
+      "requiresOAuth": true,
+      "requiredScope": "submit",
+      "testCases": [
+        {
+          "name": "Test Post",
+          "params": {
+            "subreddit": "test",
+            "title": "MCP Reddit Server Test Post",
+            "content": "This is a test post from MCP Reddit Server to verify functionality."
+          }
+        },
+        {
+          "name": "Link Post",
+          "params": {
+            "subreddit": "test",
+            "title": "MCP Documentation Link",
+            "content": "https://modelcontextprotocol.io/"
+          }
+        }
+      ]
+    },
+
+    "submit_comment": {
+      "description": "Đăng comment",
+      "requiresOAuth": true,
+      "requiredScope": "submit",
+      "testCases": [
+        {
+          "name": "Basic Comment",
+          "params": {
+            "post_id": "1n1nlse",
+            "text": "Test comment from MCP Reddit Server"
+          }
+        }
+      ]
+    },
+
+    "vote_post": {
+      "description": "Vote post/comment",
+      "requiresOAuth": true,
+      "requiredScope": "vote",
+      "testCases": [
+        {
+          "name": "Upvote Test",
+          "params": {
+            "post_id": "1n1nlse",
+            "direction": "up"
+          }
+        },
+        {
+          "name": "Remove Vote",
+          "params": {
+            "post_id": "1n1nlse",
+            "direction": "remove"
+          }
+        }
+      ]
+    },
+
+    "save_post": {
+      "description": "Lưu/bỏ lưu post",
+      "requiresOAuth": true,
+      "requiredScope": "history",
+      "testCases": [
+        {
+          "name": "Save Post",
+          "params": {
+            "post_id": "1n1nlse",
+            "action": "save"
+          }
+        },
+        {
+          "name": "Unsave Post",
+          "params": {
+            "post_id": "1n1nlse",
+            "action": "unsave"
+          }
+        }
+      ]
+    },
+
+    "send_message": {
+      "description": "Gửi tin nhắn riêng",
+      "requiresOAuth": true,
+      "requiredScope": "privatemessages",
+      "testCases": [
+        {
+          "name": "Test Message",
+          "params": {
+            "to": "AwkwardTension4482",
+            "subject": "MCP Reddit Server Test",
+            "text": "This is a test message sent via MCP Reddit Server."
+          }
+        }
+      ]
+    },
+
+    "subscribe_subreddit": {
+      "description": "Subscribe/unsubscribe subreddit",
+      "requiresOAuth": true,
+      "requiredScope": "subscribe",
+      "testCases": [
+        {
+          "name": "Subscribe Test",
+          "params": {
+            "subreddit": "test",
+            "action": "follow"
+          }
+        },
+        {
+          "name": "Unsubscribe Test",
+          "params": {
+            "subreddit": "test",
+            "action": "unfollow"
+          }
+        }
+      ]
+    }
+  },
+
+  "testScenarios": {
+    "quickTest": {
+      "description": "Test nhanh các tool read-only",
+      "tools": [
+        "get_subreddit_posts",
+        "get_subreddit_info",
+        "get_trending_subreddits"
+      ],
+      "estimatedTime": "2-3 minutes"
+    },
+
+    "fullTest": {
+      "description": "Test đầy đủ tất cả 13 tools",
+      "tools": [
+        "get_subreddit_posts",
+        "search_reddit", 
+        "get_user_profile",
+        "get_subreddit_info",
+        "get_post_comments",
+        "get_trending_subreddits",
+        "get_cross_posts",
+        "submit_post",
+        "submit_comment",
+        "vote_post",
+        "save_post",
+        "send_message",
+        "subscribe_subreddit"
+      ],
+      "estimatedTime": "10-15 minutes",
+      "requiresOAuth": true
+    },
+
+    "integrationTest": {
+      "description": "Test tích hợp với MCP client",
+      "steps": [
+        "1. Start MCP server",
+        "2. Connect MCP client",
+        "3. List available tools",
+        "4. Test each tool with sample data",
+        "5. Verify responses format",
+        "6. Check error handling"
+      ]
+    }
+  },
+
+  "expectedResponses": {
+    "successFormat": {
+      "content": [
+        {
+          "type": "text",
+          "text": "✅ **Success message with formatted data**"
+        }
+      ]
+    },
+    "errorFormat": {
+      "content": [
+        {
+          "type": "text", 
+          "text": "❌ **Error message with details**"
+        }
+      ]
+    }
+  },
+
+  "validationRules": {
+    "requiredFields": {
+      "RedditPost": ["id", "title", "author", "subreddit", "score", "created_utc"],
+      "RedditComment": ["id", "author", "body", "score", "created_utc"],
+      "RedditSubreddit": ["display_name", "title", "subscribers", "created_utc"],
+      "RedditUser": ["name", "created_utc", "comment_karma", "link_karma"]
+    },
+    "dataTypes": {
+      "score": "number",
+      "created_utc": "number", 
+      "subscribers": "number",
+      "karma": "number"
+    }
+  }
+}
