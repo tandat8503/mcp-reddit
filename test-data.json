@@ -200,8 +200,7 @@
       "search_reddit"
     ],
     "oauth_setup": [
-      "get_oauth_url",
-      "exchange_oauth_code"
+      "setup_oauth_smart"
     ],
     "content_creation": [
       "submit_post",

@@ -590,6 +590,24 @@ export class RedditAPIService {
       };
     }
   }
+
+  // Check if OAuth tokens are valid
+  hasValidTokens(): boolean {
+    return !!(this.accessToken && this.tokenExpiry && Date.now() < this.tokenExpiry);
+  }
+
+  // Set OAuth tokens manually (for environment variables)
+  setTokens(accessToken: string, refreshToken?: string, expiresIn?: number): void {
+    this.accessToken = accessToken;
+    if (refreshToken) {
+      this.refreshToken = refreshToken;
+    }
+    if (expiresIn) {
+      this.tokenExpiry = Date.now() + (expiresIn * 1000);
+    }
+    // Save to storage
+    this.saveTokensToStorage();
+  }
 }
 
 // Export singleton instance

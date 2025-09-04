@@ -4,7 +4,7 @@ A Model Context Protocol (MCP) server that provides access to Reddit's API throu
 
 ## 🚀 Features
 
-- **15 Comprehensive Tools**: 7 read-only + 6 action + 2 OAuth setup tools
+- **14 Comprehensive Tools**: 7 read-only + 6 action + 1 Smart OAuth setup tool
 - **OAuth2 Support**: Full OAuth2 Authorization Code flow with redirect URI
 - **Persistent Token Storage**: Tokens are automatically saved and restored across server restarts
 - **Advanced Rate Limiting**: Built-in rate limiting with Reddit API header monitoring
@@ -105,8 +105,7 @@ TIMEOUT_SECONDS=30
    - `get_trending_subreddits`
 
 2. **OAuth setup**:
-   - `get_oauth_url` → Get authorization URL
-   - `exchange_oauth_code` → Exchange code for token
+   - `setup_oauth_smart` → Check status, get URL, exchange code
 
 3. **Action tools** (after OAuth):
    - `submit_post`
@@ -127,17 +126,16 @@ TIMEOUT_SECONDS=30
 6. **`get_trending_subreddits`** - Get trending and popular subreddits
 7. **`get_subreddit_info`** - Get comprehensive subreddit information
 
-### 🔐 OAuth Setup Tools (2 tools)
-8. **`get_oauth_url`** - Generate OAuth2 authorization URL for user authentication
-9. **`exchange_oauth_code`** - Exchange authorization code for access token
+### 🔐 Smart OAuth Setup Tool (1 tool)
+8. **`setup_oauth_smart`** - Smart OAuth setup with multiple modes for AI agents
 
 ### ⚡ Action Tools (6 tools - OAuth Required)
-10. **`submit_post`** - Create a new text or link post in a subreddit
-11. **`submit_comment`** - Submit a comment on a post or reply to another comment
-12. **`vote_post`** - Vote on posts or comments (upvote/downvote/neutral)
-13. **`save_post`** - Save or unsave posts to your saved collection
-14. **`send_message`** - Send private messages to other Reddit users
-15. **`subscribe_subreddit`** - Subscribe or unsubscribe from subreddits
+9. **`submit_post`** - Create a new text or link post in a subreddit
+10. **`submit_comment`** - Submit a comment on a post or reply to another comment
+11. **`vote_post`** - Vote on posts or comments (upvote/downvote/neutral)
+12. **`save_post`** - Save or unsave posts to your saved collection
+13. **`send_message`** - Send private messages to other Reddit users
+14. **`subscribe_subreddit`** - Subscribe or unsubscribe from subreddits
 
 ## 📖 Tool Usage Examples
 
@@ -177,14 +175,22 @@ TIMEOUT_SECONDS=30
 }
 ```
 
-### OAuth Setup (Required for Action Tools)
+### Smart OAuth Setup (Required for Action Tools)
 
-#### Get OAuth URL
+#### Check OAuth Status
 ```json
 {
-  "name": "get_oauth_url",
+  "name": "setup_oauth_smart",
+  "arguments": {}
+}
+```
+
+#### Get Authorization URL
+```json
+{
+  "name": "setup_oauth_smart",
   "arguments": {
-    "state": "my_auth_123"
+    "mode": "url"
   }
 }
 ```
@@ -192,10 +198,10 @@ TIMEOUT_SECONDS=30
 #### Exchange Authorization Code
 ```json
 {
-  "name": "exchange_oauth_code",
+  "name": "setup_oauth_smart",
   "arguments": {
-    "code": "AUTHORIZATION_CODE_FROM_REDDIT",
-    "state": "my_auth_123"
+    "mode": "exchange",
+    "code": "AUTHORIZATION_CODE_FROM_REDDIT"
   }
 }
 ```
@@ -270,10 +276,11 @@ Start with tools that don't require OAuth:
 - `search_reddit` - Search for content
 
 ### Step 5: Setup OAuth (For Action Tools)
-1. Use `get_oauth_url` to get authorization URL
-2. Visit URL in browser and authorize
-3. Copy authorization code from redirect
-4. Use `exchange_oauth_code` to get access token
+1. Use `setup_oauth_smart` to check OAuth status
+2. Use `setup_oauth_smart` with `mode: "url"` to get authorization URL
+3. Visit URL in browser and authorize
+4. Copy authorization code from redirect
+5. Use `setup_oauth_smart` with `mode: "exchange"` to get access token
 
 ### Step 6: Test Action Tools
 After OAuth setup, test authenticated actions:

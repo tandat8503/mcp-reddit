@@ -1109,147 +1109,133 @@ server.tool(
 // 🔐 OAUTH SETUP TOOLS - Các tool thiết lập OAuth authentication
 // ========================================
 
-// 🎯 OAuth URL Generation Tool
-// 📋 Chức năng: Tạo URL để user xác thực OAuth với Reddit
+// 🎯 Smart OAuth Setup Tool
+// 📋 Chức năng: Smart OAuth setup với multiple modes cho Agent AI
 // 🔧 Cách hoạt động:
-// - Tạo authorization URL với client_id, redirect_uri, scopes
-// - User truy cập URL này để đăng nhập Reddit
-// - Reddit redirect về với authorization code
-// - Code được dùng để lấy access token
+// - Mode 'check': Kiểm tra OAuth status hiện tại
+// - Mode 'url': Tạo authorization URL cho user
+// - Mode 'exchange': Exchange authorization code for token
+// - Auto-detect environment variables nếu có
 //
 // 📝 Parameters:
-// - state: Mã state để bảo mật (optional)
+// - mode: OAuth setup mode ('check', 'url', 'exchange')
+// - code: Authorization code (required for exchange mode)
 //
 // 🔐 OAuth Flow: Authorization Code Flow
-// - Bước 1: Tạo authorization URL (tool này)
-// - Bước 2: User visit URL và authorize
-// - Bước 3: Exchange code for token (exchange_oauth_code tool)
+// - Bước 1: Check status (mode: 'check')
+// - Bước 2: Get URL (mode: 'url')
+// - Bước 3: User visit URL và authorize
+// - Bước 4: Exchange code (mode: 'exchange')
 //
-// 💡 Lưu ý: URL này phải được mở trong browser để user có thể đăng nhập
+// 💡 Lưu ý: Tool này tối ưu cho Agent AI với single interface
 
-server.tool(
-  "get_oauth_url",
-  "🔗 Generate OAuth2 authorization URL for Reddit authentication\n" +
-  "🎯 What it does: Creates a URL for users to authorize the app with Reddit\n" +
-  "🔐 OAuth Required: No (this tool generates the OAuth URL)\n" +
-  "📝 Required: None\n" +
-  "⚙️ Optional: state (security code to prevent CSRF attacks)\n" +
-  "💡 Examples:\n" +
-  "   • Generate URL: {}\n" +
-  "   • With state: {\"state\": \"my_security_code\"}\n" +
-  "🔍 Output: OAuth authorization URL that user must visit\n" +
-  "⚠️ Note: User must visit this URL in browser to complete OAuth flow.",
-  {
-    type: "object",
-    properties: {
-      state: {
-        type: "string",
-        description: "Optional security state code to prevent CSRF attacks"
-      }
-    },
-    additionalProperties: false
-  },
-  createToolHandler(async (params: { state?: string }) => {
-    const state = params.state || 'mcp_reddit_auth';
-    const authUrl = redditAPI.getAuthorizationUrl(state);
-    
-    const resultText = `🔗 **OAuth Authorization URL Generated!**
-
-🌐 **Authorization URL:**
-${authUrl}
-
-📋 **Next Steps:**
-1. **Copy the URL above** and open it in your browser
-2. **Login to Reddit** with your account
-3. **Authorize the app** by clicking "Allow"
-4. **Copy the authorization code** from the redirect URL
-5. **Use the exchange_oauth_code tool** with the code
-
-🔐 **OAuth Scopes Requested:**
-• read - Read posts, comments, subreddits
-• submit - Submit posts and comments  
-• vote - Upvote/downvote posts and comments
-• history - Save/unsave posts
-• privatemessages - Send private messages
-• subscribe - Subscribe/unsubscribe to subreddits
-
-💡 **Note:** After completing OAuth, you'll be able to use all action tools!`;
-
-    return createSuccessResponse(resultText);
-  })
-);
-
-// 🎯 OAuth Code Exchange Tool
-// 📋 Chức năng: Đổi authorization code thành access token
-// 🔧 Cách hoạt động:
-// - Nhận authorization code từ Reddit redirect
-// - Gửi code + client credentials đến Reddit token endpoint
-// - Nhận access token và refresh token
-// - Lưu tokens vào persistent storage
-// - Tokens được dùng cho các action tools
-//
-// 📝 Parameters:
-// - code: Authorization code từ Reddit redirect URL
-// - state: State code để verify (phải match với get_oauth_url)
-//
-// 🔐 OAuth Flow: Authorization Code Flow
-// - Bước 1: get_oauth_url (tạo authorization URL)
-// - Bước 2: User authorize (manual step)
-// - Bước 3: exchange_oauth_code (tool này)
-//
-// 💡 Lưu ý: Code chỉ valid trong vài phút, phải exchange ngay
-
-// Define schema for exchange_oauth_code
-const ExchangeOAuthCodeSchema = z.object({
-  code: z.string().describe("Authorization code received from Reddit redirect URL"),
-  state: z.string().optional().describe("State code to verify (should match get_oauth_url state)")
+// Define schema for smart OAuth setup
+const SmartOAuthSetupSchema = z.object({
+  mode: z.enum(['check', 'url', 'exchange']).optional().describe("OAuth setup mode"),
+  code: z.string().optional().describe("Authorization code (required for exchange mode)")
 });
 
 server.tool(
-  "exchange_oauth_code",
-  "🔄 Exchange OAuth2 authorization code for access token\n" +
-  "🎯 What it does: Converts authorization code from Reddit into access token\n" +
-  "🔐 OAuth Required: No (this tool completes the OAuth setup)\n" +
-  "📝 Required: code (authorization code from Reddit redirect)\n" +
-  "⚙️ Optional: state (must match the state from get_oauth_url)\n" +
+  "setup_oauth_smart",
+  "🧠 Smart OAuth setup with multiple modes for AI agents\n" +
+  "🎯 What it does: Handles OAuth setup intelligently with status checking\n" +
+  "🔐 OAuth Required: No (this tool sets up OAuth)\n" +
+  "📝 Required: None\n" +
+  "⚙️ Optional: mode ('check', 'url', 'exchange'), code (for exchange mode)\n" +
   "💡 Examples:\n" +
-  "   • Exchange code: {\"code\": \"abc123def456\"}\n" +
-  "   • With state: {\"code\": \"abc123def456\", \"state\": \"my_security_code\"}\n" +
-  "🔍 Output: Success message with token information\n" +
-  "⚠️ Note: Authorization code expires quickly, use immediately after receiving it.",
-  ExchangeOAuthCodeSchema.shape,
-  createToolHandler(async (params: z.infer<typeof ExchangeOAuthCodeSchema>) => {
-    const { code, state } = params;
+  "   • Check status: {}\n" +
+  "   • Get URL: {\"mode\": \"url\"}\n" +
+  "   • Exchange code: {\"mode\": \"exchange\", \"code\": \"abc123\"}\n" +
+  "🔍 Output: OAuth status or next steps\n" +
+  "🤖 Agent-friendly: Returns structured data for AI processing",
+  SmartOAuthSetupSchema.shape,
+  createToolHandler(async (params: z.infer<typeof SmartOAuthSetupSchema>) => {
+    const mode = params.mode || 'check';
     
-    const success = await redditAPI.exchangeCodeForToken(code);
-    
-    if (success) {
-      const resultText = `✅ **OAuth Authentication Successful!**
+    // Mode 1: Check OAuth status
+    if (mode === 'check') {
+      // Check if OAuth already configured
+      if (redditAPI.hasValidTokens()) {
+        return createSuccessResponse(`✅ **OAuth Ready**
 
-🔐 **Authentication Complete:**
-• Access token obtained and saved
-• Refresh token saved for automatic renewal
-• Tokens persisted to reddit_tokens.json
+🔐 **Status**: Authenticated
+🎯 **Available**: All action tools ready
+🤖 **Agent Status**: Can proceed with Reddit operations
 
-🎯 **You can now use all action tools:**
-• submit_post - Create new posts
-• submit_comment - Comment on posts
-• vote_post - Vote on posts/comments
-• save_post - Save/unsave posts
-• send_message - Send private messages
-• subscribe_subreddit - Subscribe/unsubscribe
+**Next Steps**: Use any action tool (submit_post, vote_post, etc.)`);
+      }
+      
+      // Check environment variables
+      const accessToken = process.env.REDDIT_ACCESS_TOKEN;
+      const refreshToken = process.env.REDDIT_REFRESH_TOKEN;
+      
+      if (accessToken) {
+        redditAPI.setTokens(accessToken, refreshToken, 3600);
+        return createSuccessResponse(`✅ **OAuth Setup Complete (Environment)**
 
-💡 **Note:** Tokens are automatically refreshed when needed. No need to re-authenticate unless tokens are manually deleted.`;
+🔐 **Method**: Environment variables
+🎯 **Status**: Ready for action tools
+🤖 **Agent Status**: Can proceed with Reddit operations
 
-      return createSuccessResponse(resultText);
-    } else {
-      return createErrorResponse(
-        "Failed to exchange OAuth code for token",
-        "Invalid authorization code or OAuth configuration error"
-      );
+**Next Steps**: Use any action tool (submit_post, vote_post, etc.)`);
+      }
+      
+      return createSuccessResponse(`❌ **OAuth Not Configured**
+
+ Next Steps:
+1. Use {"mode": "url"} to get authorization URL
+2. Visit URL and authorize
+3. Use {"mode": "exchange", "code": "YOUR_CODE"} to complete setup`);
     }
+    
+    // Mode 2: Get authorization URL
+    if (mode === 'url') {
+      const authUrl = redditAPI.getAuthorizationUrl('smart_setup');
+      
+      return createSuccessResponse(`🔗 **Authorization URL Generated**
+
+🌐 **URL**: ${authUrl}
+
+📋 **Next Steps**:
+1. **Visit the URL above** in your browser
+2. **Login to Reddit** and authorize the app
+3. **Copy the authorization code** from redirect URL
+4. **Use exchange mode**: {"mode": "exchange", "code": "YOUR_CODE"}
+
+⚠️ **Note**: Code expires in 10 minutes, use immediately!`);
+    }
+    
+    // Mode 3: Exchange authorization code
+    if (mode === 'exchange') {
+      if (!params.code) {
+        return createErrorResponse("Authorization code is required for exchange mode");
+      }
+      
+      const success = await redditAPI.exchangeCodeForToken(params.code);
+      
+      if (success) {
+        return createSuccessResponse(`✅ **OAuth Setup Complete**
+
+🔐 **Authentication**: Successful
+🎯 **Status**: Ready for action tools
+🤖 **Agent Status**: Can proceed with Reddit operations
+
+**Available Action Tools**:
+• submit_post - Create posts
+• submit_comment - Comment on posts
+• vote_post - Vote on content
+• save_post - Save posts
+• send_message - Send messages
+• subscribe_subreddit - Follow subreddits`);
+      } else {
+        return createErrorResponse("Failed to exchange authorization code. Please try again.");
+      }
+    }
+    
+    return createErrorResponse("Invalid mode. Use 'check', 'url', or 'exchange'");
   })
 );
+
 
 // ========================================
 // 🚀 START SERVER - Khởi động MCP Reddit Server
