@@ -43,7 +43,7 @@ export class ConfigService {
       ),
       redditRedirectUri: this.getEnv(
         "REDDIT_REDIRECT_URI",
-        "http://localhost:8080/callback"
+        "http://localhost:8080"
       ),
       redditOAuthScopes: this.getEnv(
         "REDDIT_OAUTH_SCOPES",
