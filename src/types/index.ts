@@ -142,7 +142,8 @@ export const SimpleSubmitPostSchema = z.object({
 // ✅ TỐI ƯU: Chỉ cần 2 trường thay vì 3
 export const SimpleSubmitCommentSchema = z.object({
   post_id: z.string().describe("Reddit post ID to comment on"),
-  text: z.string().describe("Comment text content")
+  text: z.string().describe("Comment text content"),
+  parent_id: z.string().optional().describe("Parent comment ID for replies (optional)")
 });
 
 // ✅ TỐI ƯU: Chỉ cần 2 trường thay vì 2 (giữ nguyên)

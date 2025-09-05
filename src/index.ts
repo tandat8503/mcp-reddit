@@ -338,6 +338,58 @@ function createSuccessResponse(text: string): any {
 }
 
 /**
+ * Validate API response and extract data - Validate response và extract data
+ * Hàm này validate API response và extract data từ Reddit API
+ * 
+ * @param result - API call result từ RedditAPIService
+ * @param expectedStructure - Tên structure mong đợi (posts, comments, etc.)
+ * @returns Array of data items
+ * 
+ * 📝 Cách sử dụng: Thay thế duplicate validation logic trong tools
+ * 🔍 Đặc điểm: Centralized validation với consistent error messages
+ * 💡 Lợi ích: DRY principle, consistent error handling
+ */
+function validateApiResponse(result: any, expectedStructure: string): any[] {
+  if (!result.success) {
+    throw new Error(result.error || 'API call failed');
+  }
+  
+  const data = result.data;
+  if (!data || !data.data || !data.data.children) {
+    throw new Error(`No ${expectedStructure} found`);
+  }
+  
+  return data.data.children.map((child: any) => child.data);
+}
+
+/**
+ * Format data list with limits - Format danh sách data với giới hạn hiển thị
+ * Hàm này format danh sách data với preview limits và "more available" message
+ * 
+ * @param items - Array of items to format
+ * @param formatter - Function để format từng item
+ * @param limit - Số lượng items hiển thị
+ * @param itemType - Tên loại item (posts, comments, etc.)
+ * @returns Formatted string với preview và more message
+ * 
+ * 📝 Cách sử dụng: Thay thế duplicate formatting logic trong tools
+ * 🔍 Đặc điểm: Consistent formatting với preview limits
+ * 💡 Lợi ích: DRY principle, consistent UX
+ */
+function formatDataList<T>(
+  items: T[],
+  formatter: (item: T) => string,
+  limit: number,
+  itemType: string
+): string {
+  const displayItems = items.slice(0, limit);
+  const formattedItems = displayItems.map(formatter).join('\n\n');
+  const moreText = items.length > limit ? `\n\n... and more ${itemType} available` : '';
+  
+  return `${formattedItems}${moreText}`;
+}
+
+/**
  * Create tool handler wrapper - Tạo wrapper để giảm boilerplate code
  * Hàm này bọc logic handler và tự động xử lý try-catch
  * 
@@ -437,16 +489,8 @@ server.tool(
       finalParams.time as any
     );
 
-    if (!result.success) {
-      return createErrorResponse("Error getting subreddit posts", result.error);
-    }
-
-    const data = result.data;
-    if (!data || !data.data || !data.data.children) {
-      return createErrorResponse("No posts found in subreddit");
-    }
-
-    const posts = data.data.children.map((child: any) => child.data);
+    // ✅ DRY: Sử dụng validateApiResponse helper
+    const posts = validateApiResponse(result, "posts");
     
     if (posts.length === 0) {
       return createSuccessResponse(`No posts found in r/${subreddit}`);
@@ -454,9 +498,10 @@ server.tool(
 
     const summary = `📊 Found ${posts.length} posts from r/${subreddit} (sorted by ${sort})`;
     
-    const postDetails = posts.slice(0, POST_PREVIEW_LIMIT).map((post: any) => formatRedditPost(post)).join('\n\n');
+    // ✅ DRY: Sử dụng formatDataList helper
+    const postDetails = formatDataList(posts, formatRedditPost, POST_PREVIEW_LIMIT, "posts");
 
-    const resultText = `${summary}\n\n${postDetails}${posts.length > POST_PREVIEW_LIMIT ? '\n\n... and more posts available' : ''}`;
+    const resultText = `${summary}\n\n${postDetails}`;
     return createSuccessResponse(resultText);
   })
 );
@@ -494,16 +539,8 @@ server.tool(
       finalParams.limit
     );
 
-    if (!result.success) {
-      return createErrorResponse("Error searching Reddit", result.error);
-    }
-
-    const data = result.data;
-    if (!data || !data.data || !data.data.children) {
-      return createErrorResponse("No search results found");
-    }
-
-    const posts = data.data.children.map((child: any) => child.data);
+    // ✅ DRY: Sử dụng validateApiResponse helper
+    const posts = validateApiResponse(result, "search results");
     
     if (posts.length === 0) {
       const searchContext = subreddit ? ` in r/${subreddit}` : '';
@@ -513,9 +550,10 @@ server.tool(
     const searchContext = subreddit ? ` in r/${subreddit}` : '';
     const summary = `🔍 Found ${posts.length} results for "${query}"${searchContext} (sorted by ${finalParams.sort})`;
     
-    const postDetails = posts.slice(0, SEARCH_RESULT_LIMIT).map((post: any) => formatRedditPost(post)).join('\n\n');
+    // ✅ DRY: Sử dụng formatDataList helper
+    const postDetails = formatDataList(posts, formatRedditPost, SEARCH_RESULT_LIMIT, "results");
 
-    const resultText = `${summary}\n\n${postDetails}${posts.length > SEARCH_RESULT_LIMIT ? '\n\n... and more results available' : ''}`;
+    const resultText = `${summary}\n\n${postDetails}`;
     return createSuccessResponse(resultText);
   })
 );
@@ -646,9 +684,10 @@ server.tool(
 
     const summary = `💬 Found ${comments.length} comments for post ${post_id} (sorted by ${sort})`;
     
-    const commentDetails = comments.slice(0, COMMENT_PREVIEW_LIMIT).map((comment: any) => formatRedditComment(comment)).join('\n\n');
+    // ✅ DRY: Sử dụng formatDataList helper
+    const commentDetails = formatDataList(comments, formatRedditComment, COMMENT_PREVIEW_LIMIT, "comments");
 
-    const resultText = `${summary}\n\n${commentDetails}${comments.length > COMMENT_PREVIEW_LIMIT ? '\n\n... and more comments available' : ''}`;
+    const resultText = `${summary}\n\n${commentDetails}`;
     return createSuccessResponse(resultText);
   })
 );
@@ -676,16 +715,8 @@ server.tool(
     
     const result = await redditAPI.getTrendingSubreddits(finalParams.limit || 25);
 
-    if (!result.success) {
-      return createErrorResponse("Error getting trending subreddits", result.error);
-    }
-
-    const data = result.data;
-    if (!data || !data.data || !data.data.children) {
-      return createErrorResponse("No trending subreddits found");
-    }
-
-    const subreddits = data.data.children.map((child: any) => child.data);
+    // ✅ DRY: Sử dụng validateApiResponse helper
+    const subreddits = validateApiResponse(result, "trending subreddits");
     
     if (subreddits.length === 0) {
       return createSuccessResponse("No trending subreddits found");
@@ -693,25 +724,28 @@ server.tool(
 
     const summary = `🔥 Found ${subreddits.length} trending subreddits`;
     
-    const subredditDetails = subreddits.slice(0, TRENDING_SUBREDDIT_LIMIT).map((subreddit: any) => {
-        const name = subreddit.display_name || 'Unknown';
-        const title = subreddit.title || 'No title';
-        const subscribers = subreddit.subscribers || 0;
-        const description = subreddit.public_description || 'No description';
-        
-        let result = `🏠 **r/${name}** - ${title}\n`;
-        result += `👥 ${subscribers.toLocaleString()} subscribers\n`;
-        if (description.length > 100) {
-          result += `📄 ${description.substring(0, 100)}...\n`;
-        } else {
-          result += `📄 ${description}\n`;
-        }
-        result += `🔗 https://reddit.com/r/${name}\n`;
-        
-        return result;
-      }).join('\n\n');
+    // ✅ DRY: Sử dụng formatDataList helper với custom formatter
+    const subredditFormatter = (subreddit: any) => {
+      const name = subreddit.display_name || 'Unknown';
+      const title = subreddit.title || 'No title';
+      const subscribers = subreddit.subscribers || 0;
+      const description = subreddit.public_description || 'No description';
+      
+      let result = `🏠 **r/${name}** - ${title}\n`;
+      result += `👥 ${subscribers.toLocaleString()} subscribers\n`;
+      if (description.length > 100) {
+        result += `📄 ${description.substring(0, 100)}...\n`;
+      } else {
+        result += `📄 ${description}\n`;
+      }
+      result += `🔗 https://reddit.com/r/${name}\n`;
+      
+      return result;
+    };
+    
+    const subredditDetails = formatDataList(subreddits, subredditFormatter, TRENDING_SUBREDDIT_LIMIT, "subreddits");
 
-    const resultText = `${summary}\n\n${subredditDetails}${subreddits.length > TRENDING_SUBREDDIT_LIMIT ? '\n\n... and more subreddits available' : ''}`;
+    const resultText = `${summary}\n\n${subredditDetails}`;
     return createSuccessResponse(resultText);
   })
 );
@@ -732,42 +766,30 @@ server.tool(
   "   • Check shares: {\"post_id\": \"1abc123\"}\n" +
   "🔍 Output: List of crossposts with title, author, subreddit, score, and Reddit link",
   SimpleCrossPostSchema.shape,
-  async (params: any) => {
-    try {
-      const { post_id } = params;
-      
-      // 🧠 Smart defaults for missing parameters
-      const smartDefaults = getSmartDefaults(params, 'cross_posts');
-      const finalParams = { ...smartDefaults, post_id };
-      
-      const result = await redditAPI.getCrossPosts(post_id, finalParams.limit || 25);
+  createToolHandler(async (params: z.infer<typeof SimpleCrossPostSchema>) => {
+    const { post_id } = params;
+    
+    // 🧠 Smart defaults for missing parameters
+    const smartDefaults = getSmartDefaults(params, 'cross_posts');
+    const finalParams = { ...smartDefaults, post_id };
+    
+    const result = await redditAPI.getCrossPosts(post_id, finalParams.limit || 25);
 
-      if (!result.success) {
-        return createErrorResponse("Error getting cross posts", result.error);
-      }
-
-      const data = result.data;
-      if (!data || !data.data || !data.data.children) {
-        return createSuccessResponse("No crossposts found for this post");
-      }
-
-      const crossPosts = data.data.children.map((child: any) => child.data);
-      
-      if (crossPosts.length === 0) {
-        return createSuccessResponse("No crossposts found for this post");
-      }
-
-      const summary = `🔄 Found ${crossPosts.length} crossposts for post ${post_id}`;
-      
-      const crossPostDetails = crossPosts.slice(0, 8).map((post: any) => formatRedditPost(post)).join('\n\n');
-
-      const resultText = `${summary}\n\n${crossPostDetails}${crossPosts.length > 8 ? '\n\n... and more crossposts available' : ''}`;
-      return createSuccessResponse(resultText);
-
-    } catch (error) {
-      return createErrorResponse("Failed to get cross posts", error instanceof Error ? error.message : 'Unknown error');
+    // ✅ DRY: Sử dụng validateApiResponse helper
+    const crossPosts = validateApiResponse(result, "crossposts");
+    
+    if (crossPosts.length === 0) {
+      return createSuccessResponse("No crossposts found for this post");
     }
-  }
+
+    const summary = `🔄 Found ${crossPosts.length} crossposts for post ${post_id}`;
+    
+    // ✅ DRY: Sử dụng formatDataList helper
+    const crossPostDetails = formatDataList(crossPosts, formatRedditPost, 8, "crossposts");
+
+    const resultText = `${summary}\n\n${crossPostDetails}`;
+    return createSuccessResponse(resultText);
+  })
 );
 
 // ========================================
@@ -811,55 +833,50 @@ server.tool(
   "🔍 Output: Success message with post ID and Reddit link\n" +
   "⚠️ Note: Requires OAuth2 setup with 'submit' scope. Use r/test for testing.",
   SimpleSubmitPostSchema.shape,
-  async (params: any) => {
-    try {
-      const { subreddit, title, content } = params;
-      
-      // 🧠 Smart auto-detection for post type and NSFW
-      const smartDefaults = getSmartDefaults(params, 'submit_post');
-      const finalParams = { ...smartDefaults, subreddit, title, content };
-      
-      const result = await redditAPI.submitPost(
-        finalParams.subreddit, 
-        finalParams.title, 
-        finalParams.content, 
-        finalParams.kind, 
-        finalParams.nsfw, 
-        finalParams.spoiler
-      );
+  createToolHandler(async (params: z.infer<typeof SimpleSubmitPostSchema>) => {
+    const { subreddit, title, content } = params;
+    
+    // 🧠 Smart auto-detection for post type and NSFW
+    const smartDefaults = getSmartDefaults(params, 'submit_post');
+    const finalParams = { ...smartDefaults, subreddit, title, content };
+    
+    const result = await redditAPI.submitPost(
+      finalParams.subreddit, 
+      finalParams.title, 
+      finalParams.content, 
+      finalParams.kind, 
+      finalParams.nsfw, 
+      finalParams.spoiler
+    );
 
-      if (!result.success) {
-        return createErrorResponse("Error submitting post", result.error);
-      }
+    if (!result.success) {
+      return createErrorResponse("Error submitting post", result.error);
+    }
 
-      const data = result.data;
-      if (!data || !data.success) {
-        return createErrorResponse("Failed to submit post - no response data");
-      }
+    const data = result.data;
+    if (!data || !data.success) {
+      return createErrorResponse("Failed to submit post - no response data");
+    }
 
-      // Extract post URL from jquery redirect if available
-      let postUrl = "https://reddit.com/r/" + subreddit;
-      if (data.jquery && Array.isArray(data.jquery)) {
-        for (const item of data.jquery) {
-          if (item[1] === 10 && item[2] === "redirect" && item[3] && item[3][0]) {
-            postUrl = item[3][0];
-            break;
-          }
+    // Extract post URL from jquery redirect if available
+    let postUrl = "https://reddit.com/r/" + subreddit;
+    if (data.jquery && Array.isArray(data.jquery)) {
+      for (const item of data.jquery) {
+        if (item[1] === 10 && item[2] === "redirect" && item[3] && item[3][0]) {
+          postUrl = item[3][0];
+          break;
         }
       }
-      
-      const resultText = `✅ **Post submitted successfully!**\n\n` +
-        `📝 **Title:** ${title}\n` +
-        `🏠 **Subreddit:** r/${subreddit}\n` +
-        `🔗 **Reddit URL:** ${postUrl}\n\n` +
-        `💡 **Note:** This tool requires OAuth with 'submit' scope. Make sure your Reddit app has the necessary permissions.`;
-      
-      return createSuccessResponse(resultText);
-
-    } catch (error) {
-      return createErrorResponse("Failed to submit post", error instanceof Error ? error.message : 'Unknown error');
     }
-  }
+    
+    const resultText = `✅ **Post submitted successfully!**\n\n` +
+      `📝 **Title:** ${title}\n` +
+      `🏠 **Subreddit:** r/${subreddit}\n` +
+      `🔗 **Reddit URL:** ${postUrl}\n\n` +
+      `💡 **Note:** This tool requires OAuth with 'submit' scope. Make sure your Reddit app has the necessary permissions.`;
+    
+    return createSuccessResponse(resultText);
+  })
 );
 
 // Tool 9: Submit Comment - Đăng comment lên một post Reddit
@@ -883,42 +900,37 @@ server.tool(
   "🔍 Output: Success message with comment ID\n" +
   "⚠️ Note: Requires OAuth2 setup with 'submit' scope.",
   SimpleSubmitCommentSchema.shape,
-  async (params: any) => {
-    try {
-      const { post_id, text } = params;
-      
-      // 🧠 Smart defaults - parent_id is optional for replies
-      const finalParams = { post_id, text, parent_id: params.parent_id };
-      
-      const result = await redditAPI.submitComment(
-        finalParams.post_id, 
-        finalParams.text, 
-        finalParams.parent_id
-      );
+  createToolHandler(async (params: z.infer<typeof SimpleSubmitCommentSchema>) => {
+    const { post_id, text, parent_id } = params;
+    
+    // 🧠 Smart defaults - parent_id is optional for replies
+    const finalParams = { post_id, text, parent_id };
+    
+    const result = await redditAPI.submitComment(
+      finalParams.post_id, 
+      finalParams.text, 
+      finalParams.parent_id
+    );
 
-      if (!result.success) {
-        return createErrorResponse("Error submitting comment", result.error);
-      }
-
-      const data = result.data;
-      if (!data || !data.json || !data.json.data) {
-        return createErrorResponse("Failed to submit comment - no response data");
-      }
-
-      const commentId = data.json.data.things[0].data.id;
-      
-      const resultText = `✅ **Comment submitted successfully!**\n\n` +
-        `💬 **Comment:** ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}\n` +
-        `📝 **Post ID:** ${post_id}\n` +
-        `🔗 **Comment ID:** ${commentId}\n\n` +
-        `💡 **Note:** This tool requires OAuth with 'submit' scope. Make sure your Reddit app has the necessary permissions.`;
-      
-      return createSuccessResponse(resultText);
-
-    } catch (error) {
-      return createErrorResponse("Failed to submit comment", error instanceof Error ? error.message : 'Unknown error');
+    if (!result.success) {
+      return createErrorResponse("Error submitting comment", result.error);
     }
-  }
+
+    const data = result.data;
+    if (!data || !data.json || !data.json.data) {
+      return createErrorResponse("Failed to submit comment - no response data");
+    }
+
+    const commentId = data.json.data.things[0].data.id;
+    
+    const resultText = `✅ **Comment submitted successfully!**\n\n` +
+      `💬 **Comment:** ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}\n` +
+      `📝 **Post ID:** ${post_id}\n` +
+      `🔗 **Comment ID:** ${commentId}\n\n` +
+      `💡 **Note:** This tool requires OAuth with 'submit' scope. Make sure your Reddit app has the necessary permissions.`;
+    
+    return createSuccessResponse(resultText);
+  })
 );
 
 // Tool 10: Vote on Post/Comment - Upvote/downvote post hoặc comment
@@ -942,33 +954,28 @@ server.tool(
   "🔍 Output: Success message confirming vote action\n" +
   "⚠️ Note: Requires OAuth2 setup with 'vote' scope.",
   SimpleVoteSchema.shape,
-  async (params: any) => {
-    try {
-      const { post_id, direction } = params;
-      
-      // 🧠 Smart conversion for vote direction
-      const smartDefaults = getSmartDefaults(params, 'vote');
-      const finalParams = { ...smartDefaults, post_id, direction };
-      
-      const result = await redditAPI.vote(post_id, finalParams.direction);
+  createToolHandler(async (params: z.infer<typeof SimpleVoteSchema>) => {
+    const { post_id, direction } = params;
+    
+    // 🧠 Smart conversion for vote direction
+    const smartDefaults = getSmartDefaults(params, 'vote');
+    const finalParams = { ...smartDefaults, post_id, direction };
+    
+    const result = await redditAPI.vote(post_id, finalParams.direction as "0" | "1" | "-1");
 
-      if (!result.success) {
-        return createErrorResponse("Error voting on post", result.error);
-      }
-
-      const voteText = direction === "1" ? "upvoted" : direction === "-1" ? "downvoted" : "unvoted";
-      
-      const resultText = `✅ **Successfully ${voteText} post/comment!**\n\n` +
-        `🔗 **Post/Comment ID:** ${post_id}\n` +
-        `⬆️ **Action:** ${voteText}\n\n` +
-        `💡 **Note:** This tool requires OAuth with 'vote' scope. Make sure your Reddit app has the necessary permissions.`;
-      
-      return createSuccessResponse(resultText);
-
-    } catch (error) {
-      return createErrorResponse("Failed to vote on post", error instanceof Error ? error.message : 'Unknown error');
+    if (!result.success) {
+      return createErrorResponse("Error voting on post", result.error);
     }
-  }
+
+    const voteText = direction === "up" ? "upvoted" : direction === "down" ? "downvoted" : "unvoted";
+    
+    const resultText = `✅ **Successfully ${voteText} post/comment!**\n\n` +
+      `🔗 **Post/Comment ID:** ${post_id}\n` +
+      `⬆️ **Action:** ${voteText}\n\n` +
+      `💡 **Note:** This tool requires OAuth with 'vote' scope. Make sure your Reddit app has the necessary permissions.`;
+    
+    return createSuccessResponse(resultText);
+  })
 );
 
 // Tool 11: Save/Unsave Post - Lưu hoặc bỏ lưu post vào favorites
@@ -991,27 +998,22 @@ server.tool(
   "🔍 Output: Success message confirming save/unsave action\n" +
   "⚠️ Note: Requires OAuth2 setup with 'history' scope. Saved posts appear in user's 'Saved' tab.",
   SimpleSavePostSchema.shape,
-  async (params: any) => {
-    try {
-      const { post_id, action } = params;
-      
-      const result = await redditAPI.savePost(post_id, action);
+  createToolHandler(async (params: z.infer<typeof SimpleSavePostSchema>) => {
+    const { post_id, action } = params;
+    
+    const result = await redditAPI.savePost(post_id, action);
 
-      if (!result.success) {
-        return createErrorResponse(`Error ${action}ing post`, result.error);
-      }
-
-      const resultText = `✅ **Successfully ${action}d post!**\n\n` +
-        `🔗 **Post ID:** ${post_id}\n` +
-        `💾 **Action:** ${action === 'save' ? 'Saved to favorites' : 'Removed from favorites'}\n\n` +
-        `💡 **Note:** This tool requires OAuth with 'history' scope. Make sure your Reddit app has the necessary permissions.`;
-      
-      return createSuccessResponse(resultText);
-
-    } catch (error) {
-      return createErrorResponse(`Failed to ${params.action} post`, error instanceof Error ? error.message : 'Unknown error');
+    if (!result.success) {
+      return createErrorResponse(`Error ${action}ing post`, result.error);
     }
-  }
+
+    const resultText = `✅ **Successfully ${action}d post!**\n\n` +
+      `🔗 **Post ID:** ${post_id}\n` +
+      `💾 **Action:** ${action === 'save' ? 'Saved to favorites' : 'Removed from favorites'}\n\n` +
+      `💡 **Note:** This tool requires OAuth with 'history' scope. Make sure your Reddit app has the necessary permissions.`;
+    
+    return createSuccessResponse(resultText);
+  })
 );
 
 // Tool 12: Send Private Message - Gửi tin nhắn riêng tư cho user Reddit
@@ -1033,28 +1035,23 @@ server.tool(
   "🔍 Output: Success message confirming message sent\n" +
   "⚠️ Note: Requires OAuth2 setup with 'privatemessages' scope. Message appears in recipient's inbox.",
   SimpleMessageSchema.shape,
-  async (params: any) => {
-    try {
-      const { to, subject, text } = params;
-      
-      const result = await redditAPI.sendMessage(to, subject, text);
+  createToolHandler(async (params: z.infer<typeof SimpleMessageSchema>) => {
+    const { to, subject, text } = params;
+    
+    const result = await redditAPI.sendMessage(to, subject, text);
 
-      if (!result.success) {
-        return createErrorResponse("Error sending message", result.error);
-      }
-
-      const resultText = `✅ **Message sent successfully!**\n\n` +
-        `👤 **To:** u/${to}\n` +
-        `📧 **Subject:** ${subject}\n` +
-        `💬 **Message:** ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}\n\n` +
-        `💡 **Note:** This tool requires OAuth with 'privatemessages' scope. Make sure your Reddit app has the necessary permissions.`;
-      
-      return createSuccessResponse(resultText);
-
-    } catch (error) {
-      return createErrorResponse("Failed to send message", error instanceof Error ? error.message : 'Unknown error');
+    if (!result.success) {
+      return createErrorResponse("Error sending message", result.error);
     }
-  }
+
+    const resultText = `✅ **Message sent successfully!**\n\n` +
+      `👤 **To:** u/${to}\n` +
+      `📧 **Subject:** ${subject}\n` +
+      `💬 **Message:** ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}\n\n` +
+      `💡 **Note:** This tool requires OAuth with 'privatemessages' scope. Make sure your Reddit app has the necessary permissions.`;
+    
+    return createSuccessResponse(resultText);
+  })
 );
 
 // Tool 13: Subscribe/Unsubscribe Subreddit - Theo dõi hoặc bỏ theo dõi subreddit
@@ -1078,31 +1075,26 @@ server.tool(
   "🔍 Output: Success message confirming subscription action\n" +
   "⚠️ Note: Requires OAuth2 setup with 'subscribe' scope. Subscribed subreddits appear in your home feed.",
   SimpleSubscribeSchema.shape,
-  async (params: any) => {
-    try {
-      const { subreddit, action } = params;
-      
-      // 🧠 Smart conversion for subscribe action
-      const smartDefaults = getSmartDefaults(params, 'subscribe');
-      const finalParams = { ...smartDefaults, subreddit, action };
-      
-      const result = await redditAPI.subscribeSubreddit(subreddit, finalParams.action);
+  createToolHandler(async (params: z.infer<typeof SimpleSubscribeSchema>) => {
+    const { subreddit, action } = params;
+    
+    // 🧠 Smart conversion for subscribe action
+    const smartDefaults = getSmartDefaults(params, 'subscribe');
+    const finalParams = { ...smartDefaults, subreddit, action };
+    
+    const result = await redditAPI.subscribeSubreddit(subreddit, finalParams.action);
 
-      if (!result.success) {
-        return createErrorResponse(`Error ${action}scribing to subreddit`, result.error);
-      }
-
-      const resultText = `✅ **Successfully ${action}scribed to subreddit!**\n\n` +
-        `🏠 **Subreddit:** r/${subreddit}\n` +
-        `📝 **Action:** ${action === 'sub' ? 'Subscribed' : 'Unsubscribed'}\n\n` +
-        `💡 **Note:** This tool requires OAuth with 'subscribe' scope. Make sure your Reddit app has the necessary permissions.`;
-      
-      return createSuccessResponse(resultText);
-
-    } catch (error) {
-      return createErrorResponse(`Failed to ${params.action}scribe to subreddit`, error instanceof Error ? error.message : 'Unknown error');
+    if (!result.success) {
+      return createErrorResponse(`Error ${action}scribing to subreddit`, result.error);
     }
-  }
+
+    const resultText = `✅ **Successfully ${action}scribed to subreddit!**\n\n` +
+      `🏠 **Subreddit:** r/${subreddit}\n` +
+      `📝 **Action:** ${action === 'follow' ? 'Subscribed' : 'Unsubscribed'}\n\n` +
+      `💡 **Note:** This tool requires OAuth with 'subscribe' scope. Make sure your Reddit app has the necessary permissions.`;
+    
+    return createSuccessResponse(resultText);
+  })
 );
 
 // ========================================
