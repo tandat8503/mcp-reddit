@@ -12,12 +12,6 @@ import {
   SimplePostCommentsSchema,
   SimpleTrendingSubredditsSchema,
   SimpleCrossPostSchema,
-  SimpleSubmitPostSchema,
-  SimpleSubmitCommentSchema,
-  SimpleVoteSchema,
-  SimpleSavePostSchema,
-  SimpleMessageSchema,
-  SimpleSubscribeSchema,
   RedditPost,
   RedditComment,
   RedditSubreddit,
@@ -34,26 +28,6 @@ import { z } from 'zod';
  * Các hàm tự động detect và set default values thông minh
  */
 
-/**
- * Auto-detect post type based on content
- * Tự động phát hiện loại post (text hay link) dựa vào nội dung
- */
-function detectPostType(content: string): "self" | "link" {
-  if (content.startsWith('http://') || content.startsWith('https://')) {
-    return 'link';
-  }
-  return 'self';
-}
-
-/**
- * Auto-detect if content is NSFW based on keywords
- * Tự động phát hiện nội dung NSFW dựa vào từ khóa
- */
-function detectNSFW(title: string, content: string): boolean {
-  const nsfwKeywords = ['nsfw', '18+', 'adult', 'explicit', 'mature', 'sexual'];
-  const text = (title + ' ' + content).toLowerCase();
-  return nsfwKeywords.some(keyword => text.includes(keyword));
-}
 
 /**
  * Get smart defaults for missing parameters
@@ -85,20 +59,6 @@ function getSmartDefaults(params: any, toolType: string) {
     case 'trending':
       return {
         limit: 25
-      };
-    case 'submit_post':
-      return {
-        kind: detectPostType(params.content),
-        nsfw: detectNSFW(params.title, params.content),
-        spoiler: false // Default false
-      };
-    case 'vote':
-      return {
-        direction: params.direction === 'up' ? '1' : params.direction === 'down' ? '-1' : '0'
-      };
-    case 'subscribe':
-      return {
-        action: params.action // Keep original action (follow/unfollow)
       };
     default:
       return {};
@@ -465,7 +425,7 @@ const server = new McpServer({
 // 💡 Use case: Hiển thị trending posts, khám phá nội dung mới, theo dõi subreddit yêu thích
 server.tool(
   "get_subreddit_posts",
-  "📖 Get posts from a subreddit (Read-Only Tool)\n" +
+  "📖 Get posts from a subreddit\n" +
   "🎯 What it does: Fetches posts from any Reddit subreddit with sorting options\n" +
   "📝 Required: subreddit name (e.g., 'programming', 'AskReddit', 'MachineLearning')\n" +
   "⚙️ Optional: sort ('hot', 'new', 'top')\n" +
@@ -476,33 +436,33 @@ server.tool(
   "🔍 Output: Formatted list with title, author, score, comments, date, and Reddit link",
   SimpleSubredditPostsSchema.shape,
   createToolHandler(async (params: z.infer<typeof SimpleSubredditPostsSchema>) => {
-    const { subreddit, sort } = params;
-    
-    // 🧠 Smart defaults for missing parameters
-    const smartDefaults = getSmartDefaults(params, 'subreddit_posts');
-    const finalParams = { ...smartDefaults, subreddit, sort: sort || smartDefaults.sort };
-    
-    const result = await redditAPI.getSubredditPosts(
-      finalParams.subreddit, 
-      finalParams.sort, 
-      finalParams.limit, 
-      finalParams.time as any
-    );
+      const { subreddit, sort } = params;
+      
+      // 🧠 Smart defaults for missing parameters
+      const smartDefaults = getSmartDefaults(params, 'subreddit_posts');
+      const finalParams = { ...smartDefaults, subreddit, sort: sort || smartDefaults.sort };
+      
+      const result = await redditAPI.getSubredditPosts(
+        finalParams.subreddit, 
+        finalParams.sort, 
+        finalParams.limit, 
+        finalParams.time as any
+      );
 
     // ✅ DRY: Sử dụng validateApiResponse helper
     const posts = validateApiResponse(result, "posts");
-    
-    if (posts.length === 0) {
-      return createSuccessResponse(`No posts found in r/${subreddit}`);
-    }
+      
+      if (posts.length === 0) {
+        return createSuccessResponse(`No posts found in r/${subreddit}`);
+      }
 
-    const summary = `📊 Found ${posts.length} posts from r/${subreddit} (sorted by ${sort})`;
-    
+      const summary = `📊 Found ${posts.length} posts from r/${subreddit} (sorted by ${sort})`;
+      
     // ✅ DRY: Sử dụng formatDataList helper
     const postDetails = formatDataList(posts, formatRedditPost, POST_PREVIEW_LIMIT, "posts");
 
     const resultText = `${summary}\n\n${postDetails}`;
-    return createSuccessResponse(resultText);
+      return createSuccessResponse(resultText);
   })
 );
 
@@ -514,7 +474,7 @@ server.tool(
 // 🔍 Đặc biệt: Có thể tìm kiếm trong toàn bộ Reddit hoặc giới hạn trong một subreddit cụ thể
 server.tool(
   "search_reddit",
-  "🔍 Search Reddit posts and comments (Read-Only Tool)\n" +
+  "🔍 Search Reddit posts and comments\n" +
   "🎯 What it does: Searches across Reddit or within a specific subreddit\n" +
   "📝 Required: query (search terms)\n" +
   "⚙️ Optional: subreddit (limit search to specific subreddit)\n" +
@@ -525,36 +485,36 @@ server.tool(
   "🔍 Output: Formatted search results with title, author, subreddit, score, and link",
   SimpleSearchSchema.shape,
   createToolHandler(async (params: z.infer<typeof SimpleSearchSchema>) => {
-    const { query, subreddit } = params;
-    
-    // 🧠 Smart defaults for missing parameters
-    const smartDefaults = getSmartDefaults(params, 'search');
-    const finalParams = { ...smartDefaults, query, subreddit };
-    
-    const result = await redditAPI.searchReddit(
-      finalParams.query, 
-      finalParams.subreddit, 
-      finalParams.sort, 
-      finalParams.time as any, 
-      finalParams.limit
-    );
+      const { query, subreddit } = params;
+      
+      // 🧠 Smart defaults for missing parameters
+      const smartDefaults = getSmartDefaults(params, 'search');
+      const finalParams = { ...smartDefaults, query, subreddit };
+      
+      const result = await redditAPI.searchReddit(
+        finalParams.query, 
+        finalParams.subreddit, 
+        finalParams.sort, 
+        finalParams.time as any, 
+        finalParams.limit
+      );
 
     // ✅ DRY: Sử dụng validateApiResponse helper
     const posts = validateApiResponse(result, "search results");
-    
-    if (posts.length === 0) {
-      const searchContext = subreddit ? ` in r/${subreddit}` : '';
-      return createSuccessResponse(`No results found for "${query}"${searchContext}`);
-    }
+      
+      if (posts.length === 0) {
+        const searchContext = subreddit ? ` in r/${subreddit}` : '';
+        return createSuccessResponse(`No results found for "${query}"${searchContext}`);
+      }
 
-    const searchContext = subreddit ? ` in r/${subreddit}` : '';
-    const summary = `🔍 Found ${posts.length} results for "${query}"${searchContext} (sorted by ${finalParams.sort})`;
-    
+      const searchContext = subreddit ? ` in r/${subreddit}` : '';
+      const summary = `🔍 Found ${posts.length} results for "${query}"${searchContext} (sorted by ${finalParams.sort})`;
+      
     // ✅ DRY: Sử dụng formatDataList helper
     const postDetails = formatDataList(posts, formatRedditPost, SEARCH_RESULT_LIMIT, "results");
 
     const resultText = `${summary}\n\n${postDetails}`;
-    return createSuccessResponse(resultText);
+      return createSuccessResponse(resultText);
   })
 );
 
@@ -566,7 +526,7 @@ server.tool(
 // 🔍 Đặc biệt: Có thể lấy thông tin của bất kỳ user nào trên Reddit (public data)
 server.tool(
   "get_user_profile",
-  "👤 Get Reddit user profile information (Read-Only Tool)\n" +
+  "👤 Get Reddit user profile information\n" +
   "🎯 What it does: Fetches detailed profile info for any Reddit user\n" +
   "📝 Required: username (Reddit username without u/ prefix)\n" +
   "💡 Examples:\n" +
@@ -576,23 +536,23 @@ server.tool(
   "🔍 Output: User info with karma, account age, gold status, moderator status, and profile link",
   SimpleUserProfileSchema.shape,
   createToolHandler(async (params: z.infer<typeof SimpleUserProfileSchema>) => {
-    const { username } = params;
-    
-    const result = await redditAPI.getUserProfile(username);
+      const { username } = params;
+      
+      const result = await redditAPI.getUserProfile(username);
 
-    if (!result.success) {
-      return createErrorResponse("Error getting user profile", result.error);
-    }
+      if (!result.success) {
+        return createErrorResponse("Error getting user profile", result.error);
+      }
 
-    const data = result.data;
-    if (!data || !data.data) {
-      return createErrorResponse("User profile not found");
-    }
+      const data = result.data;
+      if (!data || !data.data) {
+        return createErrorResponse("User profile not found");
+      }
 
-    const user = data.data;
-    const userInfo = formatUserProfile(user);
-    
-    return createSuccessResponse(userInfo);
+      const user = data.data;
+      const userInfo = formatUserProfile(user);
+      
+      return createSuccessResponse(userInfo);
   })
 );
 
@@ -604,7 +564,7 @@ server.tool(
 // 🔍 Đặc biệt: Hiển thị số active users real-time và public description của subreddit
 server.tool(
   "get_subreddit_info",
-  "🏠 Get subreddit information (Read-Only Tool)\n" +
+  "🏠 Get subreddit information\n" +
   "🎯 What it does: Fetches detailed info about any Reddit subreddit\n" +
   "📝 Required: subreddit name (without r/ prefix)\n" +
   "💡 Examples:\n" +
@@ -614,23 +574,23 @@ server.tool(
   "🔍 Output: Subreddit details with description, subscribers, active users, creation date, NSFW status, and URL",
   SimpleSubredditInfoSchema.shape,
   createToolHandler(async (params: z.infer<typeof SimpleSubredditInfoSchema>) => {
-    const { subreddit } = params;
-    
-    const result = await redditAPI.getSubredditInfo(subreddit);
+      const { subreddit } = params;
+      
+      const result = await redditAPI.getSubredditInfo(subreddit);
 
-    if (!result.success) {
-      return createErrorResponse("Error getting subreddit info", result.error);
-    }
+      if (!result.success) {
+        return createErrorResponse("Error getting subreddit info", result.error);
+      }
 
-    const data = result.data;
-    if (!data || !data.data) {
-      return createErrorResponse("Subreddit not found");
-    }
+      const data = result.data;
+      if (!data || !data.data) {
+        return createErrorResponse("Subreddit not found");
+      }
 
-    const subredditInfo = data.data;
-    const formattedInfo = formatSubredditInfo(subredditInfo);
-    
-    return createSuccessResponse(formattedInfo);
+      const subredditInfo = data.data;
+      const formattedInfo = formatSubredditInfo(subredditInfo);
+      
+      return createSuccessResponse(formattedInfo);
   })
 );
 
@@ -642,7 +602,7 @@ server.tool(
 // 🔍 Đặc biệt: Hỗ trợ nested replies với indent tăng dần theo độ sâu, hiển thị score và timestamp
 server.tool(
   "get_post_comments",
-  "💬 Get comments for a Reddit post (Read-Only Tool)\n" +
+  "💬 Get comments for a Reddit post\n" +
   "🎯 What it does: Fetches comments and replies for any Reddit post\n" +
   "📝 Required: post_id (Reddit post ID, found in post URLs)\n" +
   "⚙️ Optional: sort ('best', 'top', 'new')\n" +
@@ -653,42 +613,42 @@ server.tool(
   "🔍 Output: Formatted comment tree with author, score, timestamp, and nested replies",
   SimplePostCommentsSchema.shape,
   createToolHandler(async (params: z.infer<typeof SimplePostCommentsSchema>) => {
-    const { post_id, sort } = params;
-    
-    // 🧠 Smart defaults for missing parameters
-    const smartDefaults = getSmartDefaults(params, 'comments');
-    const finalParams = { ...smartDefaults, post_id, sort: sort || smartDefaults.sort };
-    
-    const result = await redditAPI.getPostComments(post_id, finalParams.limit, finalParams.sort);
+      const { post_id, sort } = params;
+      
+      // 🧠 Smart defaults for missing parameters
+      const smartDefaults = getSmartDefaults(params, 'comments');
+      const finalParams = { ...smartDefaults, post_id, sort: sort || smartDefaults.sort };
+      
+      const result = await redditAPI.getPostComments(post_id, finalParams.limit, finalParams.sort);
 
-    if (!result.success) {
-      return createErrorResponse("Error getting post comments", result.error);
-    }
+      if (!result.success) {
+        return createErrorResponse("Error getting post comments", result.error);
+      }
 
-    const data = result.data;
-    if (!data || !Array.isArray(data) || data.length === 0) {
-      return createErrorResponse("No comments found for this post");
-    }
+      const data = result.data;
+      if (!data || !Array.isArray(data) || data.length === 0) {
+        return createErrorResponse("No comments found for this post");
+      }
 
-    // The first element contains the post, the second contains comments
-    const commentsData = data[1];
-    if (!commentsData || !commentsData.data || !commentsData.data.children) {
-      return createErrorResponse("No comments found for this post");
-    }
+      // The first element contains the post, the second contains comments
+      const commentsData = data[1];
+      if (!commentsData || !commentsData.data || !commentsData.data.children) {
+        return createErrorResponse("No comments found for this post");
+      }
 
-    const comments = commentsData.data.children.map((child: any) => child.data);
-    
-    if (comments.length === 0) {
-      return createSuccessResponse("No comments found for this post");
-    }
+      const comments = commentsData.data.children.map((child: any) => child.data);
+      
+      if (comments.length === 0) {
+        return createSuccessResponse("No comments found for this post");
+      }
 
-    const summary = `💬 Found ${comments.length} comments for post ${post_id} (sorted by ${sort})`;
-    
+      const summary = `💬 Found ${comments.length} comments for post ${post_id} (sorted by ${sort})`;
+      
     // ✅ DRY: Sử dụng formatDataList helper
     const commentDetails = formatDataList(comments, formatRedditComment, COMMENT_PREVIEW_LIMIT, "comments");
 
     const resultText = `${summary}\n\n${commentDetails}`;
-    return createSuccessResponse(resultText);
+      return createSuccessResponse(resultText);
   })
 );
 
@@ -700,7 +660,7 @@ server.tool(
 // 🔍 Đặc biệt: Hiển thị số subscribers real-time và public description của mỗi subreddit
 server.tool(
   "get_trending_subreddits",
-  "🔥 Get trending/popular subreddits (Read-Only Tool)\n" +
+  "🔥 Get trending/popular subreddits\n" +
   "🎯 What it does: Fetches list of currently popular and trending subreddits\n" +
   "📝 Required: None (no parameters needed)\n" +
   "💡 Examples:\n" +
@@ -709,38 +669,38 @@ server.tool(
   "🔍 Output: List of trending subreddits with name, title, subscribers, description, and URL",
   SimpleTrendingSubredditsSchema.shape,
   createToolHandler(async (params: z.infer<typeof SimpleTrendingSubredditsSchema>) => {
-    // 🧠 Smart defaults - no parameters needed
-    const smartDefaults = getSmartDefaults(params, 'trending');
-    const finalParams = { ...smartDefaults };
-    
-    const result = await redditAPI.getTrendingSubreddits(finalParams.limit || 25);
+      // 🧠 Smart defaults - no parameters needed
+      const smartDefaults = getSmartDefaults(params, 'trending');
+      const finalParams = { ...smartDefaults };
+      
+      const result = await redditAPI.getTrendingSubreddits(finalParams.limit || 25);
 
     // ✅ DRY: Sử dụng validateApiResponse helper
     const subreddits = validateApiResponse(result, "trending subreddits");
-    
-    if (subreddits.length === 0) {
-      return createSuccessResponse("No trending subreddits found");
-    }
+      
+      if (subreddits.length === 0) {
+        return createSuccessResponse("No trending subreddits found");
+      }
 
-    const summary = `🔥 Found ${subreddits.length} trending subreddits`;
-    
+      const summary = `🔥 Found ${subreddits.length} trending subreddits`;
+      
     // ✅ DRY: Sử dụng formatDataList helper với custom formatter
     const subredditFormatter = (subreddit: any) => {
-      const name = subreddit.display_name || 'Unknown';
-      const title = subreddit.title || 'No title';
-      const subscribers = subreddit.subscribers || 0;
-      const description = subreddit.public_description || 'No description';
-      
-      let result = `🏠 **r/${name}** - ${title}\n`;
-      result += `👥 ${subscribers.toLocaleString()} subscribers\n`;
-      if (description.length > 100) {
-        result += `📄 ${description.substring(0, 100)}...\n`;
-      } else {
-        result += `📄 ${description}\n`;
-      }
-      result += `🔗 https://reddit.com/r/${name}\n`;
-      
-      return result;
+        const name = subreddit.display_name || 'Unknown';
+        const title = subreddit.title || 'No title';
+        const subscribers = subreddit.subscribers || 0;
+        const description = subreddit.public_description || 'No description';
+        
+        let result = `🏠 **r/${name}** - ${title}\n`;
+        result += `👥 ${subscribers.toLocaleString()} subscribers\n`;
+        if (description.length > 100) {
+          result += `📄 ${description.substring(0, 100)}...\n`;
+        } else {
+          result += `📄 ${description}\n`;
+        }
+        result += `🔗 https://reddit.com/r/${name}\n`;
+        
+        return result;
     };
     
     const subredditDetails = formatDataList(subreddits, subredditFormatter, TRENDING_SUBREDDIT_LIMIT, "subreddits");
@@ -758,7 +718,7 @@ server.tool(
 // 🔍 Đặc biệt: Hiển thị thông tin đầy đủ của mỗi crosspost bao gồm subreddit đích và engagement
 server.tool(
   "get_cross_posts",
-  "🔄 Find crossposts of a Reddit post (Read-Only Tool)\n" +
+  "🔄 Find crossposts of a Reddit post\n" +
   "🎯 What it does: Finds posts that were cross-posted from the original post\n" +
   "📝 Required: post_id (Reddit post ID to find crossposts for)\n" +
   "💡 Examples:\n" +
@@ -767,466 +727,43 @@ server.tool(
   "🔍 Output: List of crossposts with title, author, subreddit, score, and Reddit link",
   SimpleCrossPostSchema.shape,
   createToolHandler(async (params: z.infer<typeof SimpleCrossPostSchema>) => {
-    const { post_id } = params;
-    
-    // 🧠 Smart defaults for missing parameters
-    const smartDefaults = getSmartDefaults(params, 'cross_posts');
-    const finalParams = { ...smartDefaults, post_id };
-    
-    const result = await redditAPI.getCrossPosts(post_id, finalParams.limit || 25);
+      const { post_id } = params;
+      
+      // 🧠 Smart defaults for missing parameters
+      const smartDefaults = getSmartDefaults(params, 'cross_posts');
+      const finalParams = { ...smartDefaults, post_id };
+      
+      const result = await redditAPI.getCrossPosts(post_id, finalParams.limit || 25);
 
     // ✅ DRY: Sử dụng validateApiResponse helper
     const crossPosts = validateApiResponse(result, "crossposts");
-    
-    if (crossPosts.length === 0) {
-      return createSuccessResponse("No crossposts found for this post");
-    }
+      
+      if (crossPosts.length === 0) {
+        return createSuccessResponse("No crossposts found for this post");
+      }
 
-    const summary = `🔄 Found ${crossPosts.length} crossposts for post ${post_id}`;
-    
+      const summary = `🔄 Found ${crossPosts.length} crossposts for post ${post_id}`;
+      
     // ✅ DRY: Sử dụng formatDataList helper
     const crossPostDetails = formatDataList(crossPosts, formatRedditPost, 8, "crossposts");
 
     const resultText = `${summary}\n\n${crossPostDetails}`;
-    return createSuccessResponse(resultText);
+      return createSuccessResponse(resultText);
   })
 );
 
 // ========================================
-// 🎯 ACTION TOOLS (OAuth Required) - Các tool thực hiện hành động trên Reddit
+// 🎯 READ-ONLY TOOLS ONLY - Chỉ có các tool đọc dữ liệu
 // ========================================
 //
-// 📋 Đặc điểm của Action Tools:
-// - Yêu cầu OAuth Authorization Code flow (user permission)
-// - Cần các scope cụ thể: submit, vote, history, privatemessages, subscribe
-// - Có thể thay đổi dữ liệu trên Reddit (post, comment, vote, etc.)
-// - Rate limit nghiêm ngặt hơn: 60 requests/minute
-// - Cần user đăng nhập và cấp quyền
+// 📋 Đặc điểm của Read-Only Tools:
+// - Không cần OAuth authentication
+// - Chỉ đọc dữ liệu từ Reddit API
+// - Hoạt động ngay lập tức không cần setup
+// - Rate limit: 60 requests/minute (Reddit default)
+// - An toàn và dễ sử dụng
 //
-// 🔐 OAuth Scopes Required:
-// - submit: Để post và comment
-// - vote: Để upvote/downvote
-// - history: Để save/unsave posts
-// - privatemessages: Để gửi tin nhắn
-// - subscribe: Để subscribe/unsubscribe subreddits
-//
-// 💡 Cách sử dụng: User phải authorize app trước khi sử dụng các tool này
-
-// Tool 8: Submit Post - Đăng bài viết mới lên subreddit
-// 🎯 Chức năng: Đăng một bài viết mới (text hoặc link) lên một subreddit cụ thể
-// 📝 Parameters: subreddit (tên subreddit), title (tiêu đề), content (nội dung), kind (loại), nsfw (18+), spoiler
-// 🔍 Output: Thông báo thành công với post ID và link Reddit
-// 💡 Use case: Đăng bài viết mới, chia sẻ nội dung, tham gia discussion
-// 🔍 Đặc biệt: Hỗ trợ cả text post và link post, có thể đánh dấu NSFW hoặc spoiler
-// ⚠️ Lưu ý: Cần OAuth scope 'submit' và user phải có quyền post trong subreddit
-server.tool(
-  "submit_post",
-  "📝 Submit a new post to Reddit (Action Tool - OAuth Required)\n" +
-  "🎯 What it does: Creates a new text or link post in a subreddit\n" +
-  "🔐 OAuth Required: Yes (submit scope)\n" +
-  "📝 Required: subreddit, title, content\n" +
-  "⚙️ Auto-detects: post type (text/link), NSFW status\n" +
-  "💡 Examples:\n" +
-  "   • Text post: {\"subreddit\": \"test\", \"title\": \"My Post\", \"content\": \"Post content\"}\n" +
-  "   • Link post: {\"subreddit\": \"programming\", \"title\": \"Cool Article\", \"content\": \"https://example.com\"}\n" +
-  "   • Test post: {\"subreddit\": \"test\", \"title\": \"MCP Test\", \"content\": \"Testing MCP Reddit Server\"}\n" +
-  "🔍 Output: Success message with post ID and Reddit link\n" +
-  "⚠️ Note: Requires OAuth2 setup with 'submit' scope. Use r/test for testing.",
-  SimpleSubmitPostSchema.shape,
-  createToolHandler(async (params: z.infer<typeof SimpleSubmitPostSchema>) => {
-    const { subreddit, title, content } = params;
-    
-    // 🧠 Smart auto-detection for post type and NSFW
-    const smartDefaults = getSmartDefaults(params, 'submit_post');
-    const finalParams = { ...smartDefaults, subreddit, title, content };
-    
-    const result = await redditAPI.submitPost(
-      finalParams.subreddit, 
-      finalParams.title, 
-      finalParams.content, 
-      finalParams.kind, 
-      finalParams.nsfw, 
-      finalParams.spoiler
-    );
-
-    if (!result.success) {
-      return createErrorResponse("Error submitting post", result.error);
-    }
-
-    const data = result.data;
-    if (!data || !data.success) {
-      return createErrorResponse("Failed to submit post - no response data");
-    }
-
-    // Extract post URL from jquery redirect if available
-    let postUrl = "https://reddit.com/r/" + subreddit;
-    if (data.jquery && Array.isArray(data.jquery)) {
-      for (const item of data.jquery) {
-        if (item[1] === 10 && item[2] === "redirect" && item[3] && item[3][0]) {
-          postUrl = item[3][0];
-          break;
-        }
-      }
-    }
-    
-    const resultText = `✅ **Post submitted successfully!**\n\n` +
-      `📝 **Title:** ${title}\n` +
-      `🏠 **Subreddit:** r/${subreddit}\n` +
-      `🔗 **Reddit URL:** ${postUrl}\n\n` +
-      `💡 **Note:** This tool requires OAuth with 'submit' scope. Make sure your Reddit app has the necessary permissions.`;
-    
-    return createSuccessResponse(resultText);
-  })
-);
-
-// Tool 9: Submit Comment - Đăng comment lên một post Reddit
-// 🎯 Chức năng: Đăng comment mới lên một post hoặc reply vào comment khác
-// 📝 Parameters: post_id (ID của post), text (nội dung comment), parent_id (ID comment cha nếu là reply)
-// 🔍 Output: Thông báo thành công với comment ID và thông tin chi tiết
-// 💡 Use case: Tham gia discussion, reply comment, đưa ra ý kiến
-// 🔍 Đặc biệt: Hỗ trợ nested comments (reply vào comment khác), có thể reply vào bất kỳ comment nào
-// ⚠️ Lưu ý: Cần OAuth scope 'submit' và user phải có quyền comment trong subreddit
-server.tool(
-  "submit_comment",
-  "💬 Submit a comment on Reddit (Action Tool - OAuth Required)\n" +
-  "🎯 What it does: Posts a comment on a Reddit post or replies to another comment\n" +
-  "🔐 OAuth Required: Yes (submit scope)\n" +
-  "📝 Required: post_id, text\n" +
-  "⚙️ Optional: parent_id (for replying to comments)\n" +
-  "💡 Examples:\n" +
-  "   • New comment: {\"post_id\": \"1n1nlse\", \"text\": \"Great post!\"}\n" +
-  "   • Reply comment: {\"post_id\": \"1n1nlse\", \"text\": \"I agree\", \"parent_id\": \"t1_abc123\"}\n" +
-  "   • Test comment: {\"post_id\": \"1n1nlse\", \"text\": \"Test comment from MCP\"}\n" +
-  "🔍 Output: Success message with comment ID\n" +
-  "⚠️ Note: Requires OAuth2 setup with 'submit' scope.",
-  SimpleSubmitCommentSchema.shape,
-  createToolHandler(async (params: z.infer<typeof SimpleSubmitCommentSchema>) => {
-    const { post_id, text, parent_id } = params;
-    
-    // 🧠 Smart defaults - parent_id is optional for replies
-    const finalParams = { post_id, text, parent_id };
-    
-    const result = await redditAPI.submitComment(
-      finalParams.post_id, 
-      finalParams.text, 
-      finalParams.parent_id
-    );
-
-    if (!result.success) {
-      return createErrorResponse("Error submitting comment", result.error);
-    }
-
-    const data = result.data;
-    if (!data || !data.json || !data.json.data) {
-      return createErrorResponse("Failed to submit comment - no response data");
-    }
-
-    const commentId = data.json.data.things[0].data.id;
-    
-    const resultText = `✅ **Comment submitted successfully!**\n\n` +
-      `💬 **Comment:** ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}\n` +
-      `📝 **Post ID:** ${post_id}\n` +
-      `🔗 **Comment ID:** ${commentId}\n\n` +
-      `💡 **Note:** This tool requires OAuth with 'submit' scope. Make sure your Reddit app has the necessary permissions.`;
-    
-    return createSuccessResponse(resultText);
-  })
-);
-
-// Tool 10: Vote on Post/Comment - Upvote/downvote post hoặc comment
-// 🎯 Chức năng: Thực hiện vote (upvote/downvote) trên một post hoặc comment Reddit
-// 📝 Parameters: post_id (ID của post/comment), direction (hướng vote: 1=upvote, -1=downvote, 0=unvote)
-// 🔍 Output: Thông báo thành công với action đã thực hiện
-// 💡 Use case: Upvote nội dung hay, downvote nội dung không phù hợp, remove vote đã thực hiện
-// 🔍 Đặc biệt: Hỗ trợ cả post và comment, có thể thay đổi vote (upvote → downvote → unvote)
-// ⚠️ Lưu ý: Cần OAuth scope 'vote' và user phải đăng nhập để thực hiện vote
-server.tool(
-  "vote_post",
-  "⬆️ Vote on Reddit post/comment (Action Tool - OAuth Required)\n" +
-  "🎯 What it does: Upvotes, downvotes, or removes vote from posts/comments\n" +
-  "🔐 OAuth Required: Yes (vote scope)\n" +
-  "📝 Required: post_id, direction\n" +
-  "⚙️ Direction values: 'up' (upvote), 'down' (downvote), 'remove' (unvote)\n" +
-  "💡 Examples:\n" +
-  "   • Upvote: {\"post_id\": \"1n1nlse\", \"direction\": \"up\"}\n" +
-  "   • Downvote: {\"post_id\": \"1n1nlse\", \"direction\": \"down\"}\n" +
-  "   • Remove vote: {\"post_id\": \"1n1nlse\", \"direction\": \"remove\"}\n" +
-  "🔍 Output: Success message confirming vote action\n" +
-  "⚠️ Note: Requires OAuth2 setup with 'vote' scope.",
-  SimpleVoteSchema.shape,
-  createToolHandler(async (params: z.infer<typeof SimpleVoteSchema>) => {
-    const { post_id, direction } = params;
-    
-    // 🧠 Smart conversion for vote direction
-    const smartDefaults = getSmartDefaults(params, 'vote');
-    const finalParams = { ...smartDefaults, post_id, direction };
-    
-    const result = await redditAPI.vote(post_id, finalParams.direction as "0" | "1" | "-1");
-
-    if (!result.success) {
-      return createErrorResponse("Error voting on post", result.error);
-    }
-
-    const voteText = direction === "up" ? "upvoted" : direction === "down" ? "downvoted" : "unvoted";
-    
-    const resultText = `✅ **Successfully ${voteText} post/comment!**\n\n` +
-      `🔗 **Post/Comment ID:** ${post_id}\n` +
-      `⬆️ **Action:** ${voteText}\n\n` +
-      `💡 **Note:** This tool requires OAuth with 'vote' scope. Make sure your Reddit app has the necessary permissions.`;
-    
-    return createSuccessResponse(resultText);
-  })
-);
-
-// Tool 11: Save/Unsave Post - Lưu hoặc bỏ lưu post vào favorites
-// 🎯 Chức năng: Lưu post vào favorites để đọc sau hoặc bỏ lưu post đã lưu
-// 📝 Parameters: post_id (ID của post), action (save hoặc unsave)
-// 🔍 Output: Thông báo thành công với action đã thực hiện
-// 💡 Use case: Lưu post hay để đọc sau, bookmark nội dung quan trọng, quản lý favorites
-// 🔍 Đặc biệt: Post được lưu sẽ xuất hiện trong "Saved" tab của user profile
-// ⚠️ Lưu ý: Cần OAuth scope 'history' và user phải đăng nhập để lưu/unsave
-server.tool(
-  "save_post",
-  "💾 Save/unsave Reddit post (Action Tool - OAuth Required)\n" +
-  "🎯 What it does: Saves posts to favorites or removes them from saved list\n" +
-  "🔐 OAuth Required: Yes (history scope)\n" +
-  "📝 Required: post_id, action\n" +
-  "⚙️ Action values: 'save' (add to favorites), 'unsave' (remove from favorites)\n" +
-  "💡 Examples:\n" +
-  "   • Save post: {\"post_id\": \"1n1nlse\", \"action\": \"save\"}\n" +
-  "   • Unsave post: {\"post_id\": \"1n1nlse\", \"action\": \"unsave\"}\n" +
-  "🔍 Output: Success message confirming save/unsave action\n" +
-  "⚠️ Note: Requires OAuth2 setup with 'history' scope. Saved posts appear in user's 'Saved' tab.",
-  SimpleSavePostSchema.shape,
-  createToolHandler(async (params: z.infer<typeof SimpleSavePostSchema>) => {
-    const { post_id, action } = params;
-    
-    const result = await redditAPI.savePost(post_id, action);
-
-    if (!result.success) {
-      return createErrorResponse(`Error ${action}ing post`, result.error);
-    }
-
-    const resultText = `✅ **Successfully ${action}d post!**\n\n` +
-      `🔗 **Post ID:** ${post_id}\n` +
-      `💾 **Action:** ${action === 'save' ? 'Saved to favorites' : 'Removed from favorites'}\n\n` +
-      `💡 **Note:** This tool requires OAuth with 'history' scope. Make sure your Reddit app has the necessary permissions.`;
-    
-    return createSuccessResponse(resultText);
-  })
-);
-
-// Tool 12: Send Private Message - Gửi tin nhắn riêng tư cho user Reddit
-// 🎯 Chức năng: Gửi tin nhắn riêng tư (private message) cho một user Reddit cụ thể
-// 📝 Parameters: to (username người nhận), subject (tiêu đề), text (nội dung tin nhắn)
-// 🔍 Output: Thông báo thành công với thông tin tin nhắn đã gửi
-// 💡 Use case: Liên lạc riêng tư với user khác, gửi thông báo, trao đổi thông tin
-// 🔍 Đặc biệt: Tin nhắn sẽ xuất hiện trong inbox của người nhận, có thể reply và forward
-// ⚠️ Lưu ý: Cần OAuth scope 'privatemessages' và user phải đăng nhập để gửi tin nhắn
-server.tool(
-  "send_message",
-  "📧 Send private message to Reddit user (Action Tool - OAuth Required)\n" +
-  "🎯 What it does: Sends a private message to any Reddit user\n" +
-  "🔐 OAuth Required: Yes (privatemessages scope)\n" +
-  "📝 Required: to (username), subject, text\n" +
-  "💡 Examples:\n" +
-  "   • Send message: {\"to\": \"username\", \"subject\": \"Hello\", \"text\": \"Hi there!\"}\n" +
-  "   • Test message: {\"to\": \"AwkwardTension4482\", \"subject\": \"MCP Test\", \"text\": \"Test from MCP\"}\n" +
-  "🔍 Output: Success message confirming message sent\n" +
-  "⚠️ Note: Requires OAuth2 setup with 'privatemessages' scope. Message appears in recipient's inbox.",
-  SimpleMessageSchema.shape,
-  createToolHandler(async (params: z.infer<typeof SimpleMessageSchema>) => {
-    const { to, subject, text } = params;
-    
-    const result = await redditAPI.sendMessage(to, subject, text);
-
-    if (!result.success) {
-      return createErrorResponse("Error sending message", result.error);
-    }
-
-    const resultText = `✅ **Message sent successfully!**\n\n` +
-      `👤 **To:** u/${to}\n` +
-      `📧 **Subject:** ${subject}\n` +
-      `💬 **Message:** ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}\n\n` +
-      `💡 **Note:** This tool requires OAuth with 'privatemessages' scope. Make sure your Reddit app has the necessary permissions.`;
-    
-    return createSuccessResponse(resultText);
-  })
-);
-
-// Tool 13: Subscribe/Unsubscribe Subreddit - Theo dõi hoặc bỏ theo dõi subreddit
-// 🎯 Chức năng: Subscribe (theo dõi) hoặc unsubscribe (bỏ theo dõi) một subreddit
-// 📝 Parameters: subreddit (tên subreddit), action (sub để subscribe, unsub để unsubscribe)
-// 🔍 Output: Thông báo thành công với action đã thực hiện
-// 💡 Use case: Theo dõi subreddit yêu thích, quản lý subscriptions, khám phá nội dung mới
-// 🔍 Đặc biệt: Subreddit được subscribe sẽ xuất hiện trong home feed, có thể customize feed
-// ⚠️ Lưu ý: Cần OAuth scope 'subscribe' và user phải đăng nhập để thay đổi subscriptions
-server.tool(
-  "subscribe_subreddit",
-  "🔔 Subscribe/unsubscribe from subreddit (Action Tool - OAuth Required)\n" +
-  "🎯 What it does: Follows or unfollows a subreddit to manage your feed\n" +
-  "🔐 OAuth Required: Yes (subscribe scope)\n" +
-  "📝 Required: subreddit, action\n" +
-  "⚙️ Action values: 'follow' (subscribe), 'unfollow' (unsubscribe)\n" +
-  "💡 Examples:\n" +
-  "   • Subscribe: {\"subreddit\": \"programming\", \"action\": \"follow\"}\n" +
-  "   • Unsubscribe: {\"subreddit\": \"programming\", \"action\": \"unfollow\"}\n" +
-  "   • Test subscribe: {\"subreddit\": \"test\", \"action\": \"follow\"}\n" +
-  "🔍 Output: Success message confirming subscription action\n" +
-  "⚠️ Note: Requires OAuth2 setup with 'subscribe' scope. Subscribed subreddits appear in your home feed.",
-  SimpleSubscribeSchema.shape,
-  createToolHandler(async (params: z.infer<typeof SimpleSubscribeSchema>) => {
-    const { subreddit, action } = params;
-    
-    // 🧠 Smart conversion for subscribe action
-    const smartDefaults = getSmartDefaults(params, 'subscribe');
-    const finalParams = { ...smartDefaults, subreddit, action };
-    
-    const result = await redditAPI.subscribeSubreddit(subreddit, finalParams.action);
-
-    if (!result.success) {
-      return createErrorResponse(`Error ${action}scribing to subreddit`, result.error);
-    }
-
-    const resultText = `✅ **Successfully ${action}scribed to subreddit!**\n\n` +
-      `🏠 **Subreddit:** r/${subreddit}\n` +
-      `📝 **Action:** ${action === 'follow' ? 'Subscribed' : 'Unsubscribed'}\n\n` +
-      `💡 **Note:** This tool requires OAuth with 'subscribe' scope. Make sure your Reddit app has the necessary permissions.`;
-    
-    return createSuccessResponse(resultText);
-  })
-);
-
-// ========================================
-// 🔐 OAUTH SETUP TOOLS - Các tool thiết lập OAuth authentication
-// ========================================
-
-// 🎯 Smart OAuth Setup Tool
-// 📋 Chức năng: Smart OAuth setup với multiple modes cho Agent AI
-// 🔧 Cách hoạt động:
-// - Mode 'check': Kiểm tra OAuth status hiện tại
-// - Mode 'url': Tạo authorization URL cho user
-// - Mode 'exchange': Exchange authorization code for token
-// - Auto-detect environment variables nếu có
-//
-// 📝 Parameters:
-// - mode: OAuth setup mode ('check', 'url', 'exchange')
-// - code: Authorization code (required for exchange mode)
-//
-// 🔐 OAuth Flow: Authorization Code Flow
-// - Bước 1: Check status (mode: 'check')
-// - Bước 2: Get URL (mode: 'url')
-// - Bước 3: User visit URL và authorize
-// - Bước 4: Exchange code (mode: 'exchange')
-//
-// 💡 Lưu ý: Tool này tối ưu cho Agent AI với single interface
-
-// Define schema for smart OAuth setup
-const SmartOAuthSetupSchema = z.object({
-  mode: z.enum(['check', 'url', 'exchange']).optional().describe("OAuth setup mode"),
-  code: z.string().optional().describe("Authorization code (required for exchange mode)")
-});
-
-server.tool(
-  "setup_oauth_smart",
-  "🧠 Smart OAuth setup with multiple modes for AI agents\n" +
-  "🎯 What it does: Handles OAuth setup intelligently with status checking\n" +
-  "🔐 OAuth Required: No (this tool sets up OAuth)\n" +
-  "📝 Required: None\n" +
-  "⚙️ Optional: mode ('check', 'url', 'exchange'), code (for exchange mode)\n" +
-  "💡 Examples:\n" +
-  "   • Check status: {}\n" +
-  "   • Get URL: {\"mode\": \"url\"}\n" +
-  "   • Exchange code: {\"mode\": \"exchange\", \"code\": \"abc123\"}\n" +
-  "🔍 Output: OAuth status or next steps\n" +
-  "🤖 Agent-friendly: Returns structured data for AI processing",
-  SmartOAuthSetupSchema.shape,
-  createToolHandler(async (params: z.infer<typeof SmartOAuthSetupSchema>) => {
-    const mode = params.mode || 'check';
-    
-    // Mode 1: Check OAuth status
-    if (mode === 'check') {
-      // Check if OAuth already configured
-      if (redditAPI.hasValidTokens()) {
-        return createSuccessResponse(`✅ **OAuth Ready**
-
-🔐 **Status**: Authenticated
-🎯 **Available**: All action tools ready
-🤖 **Agent Status**: Can proceed with Reddit operations
-
-**Next Steps**: Use any action tool (submit_post, vote_post, etc.)`);
-      }
-      
-      // Check environment variables
-      const accessToken = process.env.REDDIT_ACCESS_TOKEN;
-      const refreshToken = process.env.REDDIT_REFRESH_TOKEN;
-      
-      if (accessToken) {
-        redditAPI.setTokens(accessToken, refreshToken, 3600);
-        return createSuccessResponse(`✅ **OAuth Setup Complete (Environment)**
-
-🔐 **Method**: Environment variables
-🎯 **Status**: Ready for action tools
-🤖 **Agent Status**: Can proceed with Reddit operations
-
-**Next Steps**: Use any action tool (submit_post, vote_post, etc.)`);
-      }
-      
-      return createSuccessResponse(`❌ **OAuth Not Configured**
-
- Next Steps:
-1. Use {"mode": "url"} to get authorization URL
-2. Visit URL and authorize
-3. Use {"mode": "exchange", "code": "YOUR_CODE"} to complete setup`);
-    }
-    
-    // Mode 2: Get authorization URL
-    if (mode === 'url') {
-      const authUrl = redditAPI.getAuthorizationUrl('smart_setup');
-      
-      return createSuccessResponse(`🔗 **Authorization URL Generated**
-
-🌐 **URL**: ${authUrl}
-
-📋 **Next Steps**:
-1. **Visit the URL above** in your browser
-2. **Login to Reddit** and authorize the app
-3. **Copy the authorization code** from redirect URL
-4. **Use exchange mode**: {"mode": "exchange", "code": "YOUR_CODE"}
-
-⚠️ **Note**: Code expires in 10 minutes, use immediately!`);
-    }
-    
-    // Mode 3: Exchange authorization code
-    if (mode === 'exchange') {
-      if (!params.code) {
-        return createErrorResponse("Authorization code is required for exchange mode");
-      }
-      
-      const success = await redditAPI.exchangeCodeForToken(params.code);
-      
-      if (success) {
-        return createSuccessResponse(`✅ **OAuth Setup Complete**
-
-🔐 **Authentication**: Successful
-🎯 **Status**: Ready for action tools
-🤖 **Agent Status**: Can proceed with Reddit operations
-
-**Available Action Tools**:
-• submit_post - Create posts
-• submit_comment - Comment on posts
-• vote_post - Vote on content
-• save_post - Save posts
-• send_message - Send messages
-• subscribe_subreddit - Follow subreddits`);
-      } else {
-        return createErrorResponse("Failed to exchange authorization code. Please try again.");
-      }
-    }
-    
-    return createErrorResponse("Invalid mode. Use 'check', 'url', or 'exchange'");
-  })
-);
+// 💡 Cách sử dụng: Có thể sử dụng ngay lập tức mà không cần cấu hình gì
 
 
 // ========================================
